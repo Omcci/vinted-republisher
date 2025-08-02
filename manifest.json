@@ -52,9 +52,7 @@
     },
     "web_accessible_resources": [
         {
-            "resources": [
-                "debug-selectors.js"
-            ],
+            "resources": [],
             "matches": [
                 "https://www.vinted.fr/*",
                 "https://vinted.fr/*",
