@@ -1,0 +1,69 @@
+{
+    "manifest_version": 3,
+    "name": "Vinted Auto Republisher",
+    "version": "1.0.0",
+    "description": "Automatise la republication de vos annonces Vinted avec modification d'images pour éviter la détection",
+    "permissions": [
+        "activeTab",
+        "storage",
+        "tabs",
+        "scripting"
+    ],
+    "host_permissions": [
+        "https://www.vinted.fr/*",
+        "https://vinted.fr/*",
+        "https://www.vinted.com/*",
+        "https://vinted.com/*"
+    ],
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "https://www.vinted.fr/*",
+                "https://vinted.fr/*",
+                "https://www.vinted.com/*",
+                "https://vinted.com/*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "css": [
+                "content.css"
+            ]
+        }
+    ],
+    "action": {
+        "default_popup": "popup.html",
+        "default_title": "Vinted Auto Republisher",
+        "default_icon": {
+            "16": "icons/icon16.png",
+            "32": "icons/icon32.png",
+            "48": "icons/icon48.png",
+            "128": "icons/icon128.png"
+        }
+    },
+    "icons": {
+        "16": "icons/icon16.png",
+        "32": "icons/icon32.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    },
+    "web_accessible_resources": [
+        {
+            "resources": [
+                "debug-selectors.js"
+            ],
+            "matches": [
+                "https://www.vinted.fr/*",
+                "https://vinted.fr/*",
+                "https://www.vinted.com/*",
+                "https://vinted.com/*"
+            ]
+        }
+    ],
+    "content_security_policy": {
+        "extension_pages": "script-src 'self'; object-src 'self'"
+    }
+}

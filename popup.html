@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vinted Auto Republisher</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="icons/icon32.png" alt="Logo" class="logo">
+            <h1>Vinted Auto Republisher</h1>
+        </div>
+
+        <div class="status" id="status">
+            <span class="status-indicator" id="statusIndicator"></span>
+            <span id="statusText">Vérification de la page...</span>
+        </div>
+
+        <div class="section">
+            <h2>Paramètres de modification d'images</h2>
+            
+            <div class="setting">
+                <label for="cropPercentage">Recadrage (%)</label>
+                <select id="cropPercentage">
+                    <option value="3">3%</option>
+                    <option value="5" selected>5%</option>
+                    <option value="7">7%</option>
+                    <option value="10">10%</option>
+                </select>
+            </div>
+
+            <div class="setting">
+                <label for="addWatermark">Ajouter un watermark</label>
+                <input type="checkbox" id="addWatermark" checked>
+            </div>
+
+            <div class="setting">
+                <label for="watermarkText">Texte du watermark</label>
+                <input type="text" id="watermarkText" value="" placeholder="Laissez vide pour watermark invisible">
+            </div>
+
+            <div class="setting">
+                <label for="rotationAngle">Rotation légère (degrés)</label>
+                <select id="rotationAngle">
+                    <option value="0">Aucune</option>
+                    <option value="0.5" selected>0.5°</option>
+                    <option value="1">1°</option>
+                    <option value="2">2°</option>
+                </select>
+            </div>
+
+            <div class="setting">
+                <label for="qualityReduction">Réduction qualité (%)</label>
+                <select id="qualityReduction">
+                    <option value="0">Aucune</option>
+                    <option value="5" selected>5%</option>
+                    <option value="10">10%</option>
+                    <option value="15">15%</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>Republication</h2>
+            
+            <div class="setting">
+                <label for="delayBetweenItems">Délai entre republications (secondes)</label>
+                <select id="delayBetweenItems">
+                    <option value="30">30 secondes</option>
+                    <option value="60" selected>1 minute</option>
+                    <option value="120">2 minutes</option>
+                    <option value="300">5 minutes</option>
+                </select>
+            </div>
+
+            <div class="setting">
+                <label for="maxItemsPerSession">Maximum d'articles par session</label>
+                <select id="maxItemsPerSession">
+                    <option value="5">5</option>
+                    <option value="10" selected>10</option>
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="actions">
+            <button id="scanItems" class="btn btn-secondary">
+                <span id="scanText">Scanner les annonces</span>
+                <span class="spinner" id="scanSpinner" style="display: none;"></span>
+            </button>
+            
+            <button id="republishSelected" class="btn btn-primary" disabled>
+                <span id="republishText">Republier les sélectionnées</span>
+                <span class="spinner" id="republishSpinner" style="display: none;"></span>
+            </button>
+        </div>
+
+        <div class="items-list" id="itemsList" style="display: none;">
+            <h3>Annonces trouvées (<span id="itemsCount">0</span>)</h3>
+            <div class="items-container" id="itemsContainer">
+                <!-- Les annonces seront ajoutées ici dynamiquement -->
+            </div>
+        </div>
+
+        <div class="progress" id="progress" style="display: none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">0 / 0</div>
+        </div>
+
+        <div class="logs" id="logs" style="display: none;">
+            <h3>Journal des opérations</h3>
+            <div class="logs-container" id="logsContainer"></div>
+        </div>
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
