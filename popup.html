@@ -92,8 +92,28 @@
                 <span class="spinner" id="scanSpinner" style="display: none;"></span>
             </button>
             
+            <div class="manual-steps" style="display: none;" id="manualSteps">
+                <h3>📋 Assistant Copy-Paste - Mode Guidé</h3>
+                
+                <button id="showData" class="btn btn-info" disabled>
+                    <span>📄 Afficher les données à copier</span>
+                </button>
+                
+                <div id="extractedData" style="display: none; margin: 10px 0; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;">
+                    <h4>📋 Données extraites :</h4>
+                    <div id="dataContent"></div>
+                    <button id="openCreatePage" class="btn btn-primary" style="margin-top: 10px;">
+                        🔗 Ouvrir la page de création
+                    </button>
+                </div>
+                
+                <button id="viewDrafts" class="btn btn-secondary" disabled>
+                    <span>👀 Voir mes brouillons</span>
+                </button>
+            </div>
+            
             <button id="republishSelected" class="btn btn-primary" disabled>
-                <span id="republishText">Republier les sélectionnées</span>
+                <span id="republishText">🤖 Automation Complète</span>
                 <span class="spinner" id="republishSpinner" style="display: none;"></span>
             </button>
         </div>
