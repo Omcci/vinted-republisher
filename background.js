@@ -1,389 +1,906 @@
 /**
- * Background Script pour Vinted Auto Republisher
- * Coordonne les actions entre le popup et les content scripts
+ * Background Script - Vinted Auto Republisher PRO
+ * 🔥 AUTOMATION COMPLÈTE AVEC PERSISTENCE CROSS-PAGE
+ * Architecture: webNavigation + chrome.storage.local pour continuité
  */
 
-class BackgroundManager {
-    constructor() {
-        this.sessions = new Map();
-        this.init();
+console.log('[Background PRO] 🚀 Service worker démarré');
+
+// 🔄 AUTOMATION SYSTEM - Détection automatique des changements de page
+chrome.webNavigation.onCompleted.addListener((details) => {
+    // Ne traiter que les frames principales (pas les iframes)
+    if (details.frameId === 0) {
+        console.log('[Automation] 📍 Page loaded:', details.url);
+
+        // Notifier tous les content scripts qu'une page est chargée
+        chrome.tabs.sendMessage(details.tabId, {
+            action: 'pageLoaded',
+            url: details.url,
+            timestamp: Date.now()
+        }).catch(() => {
+            // Ignorer les erreurs si pas de content script
+            console.log('[Automation] ℹ️ No content script in tab', details.tabId);
+        });
     }
+});
 
-    init() {
-        // Écouter les messages des autres scripts
-        chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-            this.handleMessage(request, sender, sendResponse);
-            return true; // Indique que la réponse sera asynchrone
-        });
+// État global simplifié
+let globalState = {
+    currentTabId: null,
+    currentUrl: null,
+    scannedItems: [],
+    isActive: false
+};
 
-        // Écouter les changements d'onglets
-        chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-            this.handleTabUpdate(tabId, changeInfo, tab);
-        });
+// 📬 SYSTÈME DE QUEUE POUR CONTENT SCRIPTS (Solution au problème de communication)
+const contentScriptQueues = new Map();
 
-        // Écouter la fermeture d'onglets
-        chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
-            this.handleTabRemoved(tabId);
-        });
+// 🎯 GESTIONNAIRE PRINCIPAL DE MESSAGES
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    console.log('[Background PRO] 📨 Message reçu:', request.action, 'de:', sender.tab ? `onglet-${sender.tab.id}` : 'popup');
 
-        console.log('[Vinted Republisher] Background script initialisé');
-    }
+    try {
+        switch (request.action) {
+            // === COMMUNICATION AVEC LE POPUP ===
+            case 'getGlobalState':
+                sendResponse({ success: true, state: globalState });
+                break;
 
-    async handleMessage(request, sender, sendResponse) {
-        try {
-            switch (request.action) {
-                case 'startSession':
-                    const sessionId = await this.startRepublishSession(request.data, sender.tab.id);
-                    sendResponse({ success: true, sessionId });
-                    break;
+            case 'setCurrentTab':
+                globalState.currentTabId = request.tabId;
+                globalState.currentUrl = request.url;
+                globalState.isActive = true;
+                console.log('[Background PRO] 🎯 Onglet actif défini:', request.tabId);
+                sendResponse({ success: true });
+                break;
 
-                case 'updateSession':
-                    await this.updateSession(request.sessionId, request.data);
-                    sendResponse({ success: true });
-                    break;
+            // === ENREGISTREMENT DES CONTENT SCRIPTS ===
+            case 'registerContentScript':
+                const tabId = sender.tab.id;
+                console.log('[Background PRO] 📝 Content script enregistré pour onglet:', tabId);
 
-                case 'endSession':
-                    await this.endSession(request.sessionId);
-                    sendResponse({ success: true });
-                    break;
+                if (!contentScriptQueues.has(tabId)) {
+                    contentScriptQueues.set(tabId, []);
+                }
 
-                case 'getSession':
-                    const session = this.getSession(request.sessionId);
-                    sendResponse({ success: true, session });
-                    break;
+                sendResponse({ success: true, tabId: tabId });
+                break;
 
-                case 'logActivity':
-                    await this.logActivity(request.data);
-                    sendResponse({ success: true });
-                    break;
+            // === SYSTÈME DE POLLING POUR CONTENT SCRIPTS ===
+            case 'pollForMessages':
+                const pollTabId = sender.tab.id;
+                const messages = contentScriptQueues.get(pollTabId) || [];
 
-                case 'checkPermissions':
-                    const hasPermissions = await this.checkPermissions();
-                    sendResponse({ success: true, hasPermissions });
-                    break;
+                // Vider la queue après récupération
+                contentScriptQueues.set(pollTabId, []);
 
-                default:
-                    sendResponse({ success: false, error: 'Action inconnue' });
-            }
-        } catch (error) {
-            console.error('[Vinted Republisher] Erreur background:', error);
-            sendResponse({ success: false, error: error.message });
+                console.log('[Background PRO] 📮 Polling onglet', pollTabId, '- Messages:', messages.length);
+                sendResponse({ success: true, messages: messages });
+                break;
+
+            // === SCAN DES ARTICLES ===
+            case 'scanItems':
+                handleScanItems(sendResponse);
+                return true; // Réponse asynchrone
+
+            case 'republishItem':
+                if (globalState.currentTabId) {
+                    console.log('[Background PRO] 🔄 Relais republishItem vers onglet:', globalState.currentTabId);
+
+                    // Ajouter à la queue de l'onglet cible
+                    const targetQueue = contentScriptQueues.get(globalState.currentTabId) || [];
+                    targetQueue.push({
+                        id: Date.now(),
+                        action: 'republishItem',
+                        data: request,
+                        timestamp: Date.now()
+                    });
+                    contentScriptQueues.set(globalState.currentTabId, targetQueue);
+
+                    sendResponse({
+                        success: true,
+                        message: `Republication demandée pour onglet ${globalState.currentTabId}`,
+                        queued: true
+                    });
+                } else {
+                    sendResponse({ success: false, error: 'Aucun onglet Vinted actif' });
+                }
+                break;
+
+            // === REPUBLICATION AUTOMATIQUE COMPLÈTE ===
+            case 'autoRepublishItem':
+                handleAutoRepublishItem(request.item, request.settings, sendResponse);
+                return true; // Réponse asynchrone
+
+            case 'startFullAutomation':
+                handleFullAutomation(request, sendResponse);
+                return true; // Réponse asynchrone
+
+            // === RETOUR CONTENT SCRIPT → POPUP ===
+            case 'reportScanResult':
+                console.log('[Background PRO] 📊 Résultat scan reçu:', request.items?.length, 'articles');
+                globalState.scannedItems = request.items || [];
+
+                // Sauvegarder pour que le popup puisse récupérer
+                chrome.storage.local.set({
+                    lastScanResult: {
+                        items: request.items,
+                        timestamp: Date.now(),
+                        tabId: sender.tab.id
+                    }
+                });
+
+                sendResponse({ success: true });
+                break;
+
+            case 'reportRepublishResult':
+                console.log('[Background PRO] 📊 Résultat republication reçu:', request.success ? 'Succès' : 'Échec');
+
+                // Sauvegarder pour que le popup puisse récupérer
+                chrome.storage.local.set({
+                    lastRepublishResult: {
+                        success: request.success,
+                        message: request.message,
+                        error: request.error,
+                        timestamp: Date.now(),
+                        tabId: sender.tab.id
+                    }
+                });
+
+                sendResponse({ success: true });
+                break;
+
+            default:
+                console.log('[Background PRO] ❓ Action non reconnue:', request.action);
+                sendResponse({ success: false, error: 'Action non reconnue' });
         }
+    } catch (error) {
+        console.error('[Background PRO] ❌ Erreur traitement message:', error);
+        sendResponse({ success: false, error: error.message });
+    }
+});
+
+// 🔍 INJECTION AUTOMATIQUE DU CONTENT SCRIPT
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    if (changeInfo.status === 'complete' && tab.url && isVintedUrl(tab.url)) {
+        injectContentScript(tabId, tab.url);
+    }
+});
+
+async function injectContentScript(tabId, url) {
+    try {
+        console.log('[Background PRO] 🎯 Page Vinted détectée:', url);
+
+        await chrome.scripting.executeScript({
+            target: { tabId: tabId },
+            files: ['content-professional.js']
+        });
+
+        console.log('[Background PRO] ✅ Content script injecté dans onglet', tabId);
+    } catch (error) {
+        // Script déjà injecté ou autre erreur non critique
+        console.log('[Background PRO] ⚠️ Script déjà présent ou erreur:', error.message);
+    }
+}
+
+// 🌍 DÉTECTION DES DOMAINES VINTED
+function isVintedUrl(url) {
+    if (!url) return false;
+
+    const vintedDomains = [
+        'vinted.fr', 'vinted.be', 'vinted.nl', 'vinted.de', 'vinted.at',
+        'vinted.it', 'vinted.es', 'vinted.pt', 'vinted.com', 'vinted.co.uk',
+        'vinted.pl', 'vinted.cz', 'vinted.sk', 'vinted.hu', 'vinted.lt',
+        'vinted.lv', 'vinted.ee'
+    ];
+
+    return vintedDomains.some(domain => url.includes(domain));
+}
+
+// 🧹 NETTOYAGE DES QUEUES LORS DE FERMETURE D'ONGLETS
+chrome.tabs.onRemoved.addListener((tabId) => {
+    if (contentScriptQueues.has(tabId)) {
+        console.log('[Background PRO] 🗑️ Nettoyage queue onglet fermé:', tabId);
+        contentScriptQueues.delete(tabId);
     }
 
-    async startRepublishSession(data, tabId) {
-        const sessionId = this.generateSessionId();
-        const session = {
-            id: sessionId,
-            tabId: tabId,
-            startTime: Date.now(),
-            status: 'active',
-            itemsTotal: data.itemsTotal || 0,
-            itemsProcessed: 0,
-            itemsSuccessful: 0,
-            itemsFailed: 0,
-            settings: data.settings || {},
-            logs: []
-        };
-
-        this.sessions.set(sessionId, session);
-
-        // Sauvegarder en storage pour persistance
-        await this.saveSessionToStorage(session);
-
-        console.log(`[Vinted Republisher] Session démarrée: ${sessionId}`);
-        return sessionId;
+    // Si c'est l'onglet actuel, le désactiver
+    if (globalState.currentTabId === tabId) {
+        globalState.currentTabId = null;
+        globalState.currentUrl = null;
+        globalState.isActive = false;
+        console.log('[Background PRO] 🔄 Onglet actif fermé, état réinitialisé');
     }
+});
 
-    async updateSession(sessionId, data) {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
-            throw new Error('Session introuvable');
-        }
+// === GESTIONNAIRE REPUBLICATION AUTOMATIQUE COMPLÈTE ===
+async function handleAutoRepublishItem(item, settings, sendResponse) {
+    console.log('[Background PRO] 🚀 Republication automatique complète:', item.title);
 
-        // Mettre à jour les données
-        Object.assign(session, data);
-        session.lastUpdate = Date.now();
-
-        // Sauvegarder
-        await this.saveSessionToStorage(session);
-
-        // Notifier le popup si ouvert
-        this.notifyPopupUpdate(sessionId, session);
-    }
-
-    async endSession(sessionId) {
-        const session = this.sessions.get(sessionId);
-        if (!session) {
+    try {
+        if (!globalState.currentTabId) {
+            sendResponse({ success: false, error: 'Aucun onglet Vinted actif' });
             return;
         }
 
-        session.status = 'completed';
-        session.endTime = Date.now();
-        session.duration = session.endTime - session.startTime;
+        // Mettre à jour le statut initial
+        await updateRepublishStatus(item.id, {
+            status: 'STARTING',
+            title: item.title,
+            timestamp: Date.now()
+        });
 
-        // Sauvegarder les statistiques finales
-        await this.saveSessionToStorage(session);
-        await this.saveSessionStats(session);
+        // Injecter le script d'automatisation directe dans l'onglet
+        await chrome.scripting.executeScript({
+            target: { tabId: globalState.currentTabId },
+            func: startDirectRepublishProcess,
+            args: [item, settings]
+        });
 
-        // Nettoyer après 5 minutes
-        setTimeout(() => {
-            this.sessions.delete(sessionId);
-        }, 5 * 60 * 1000);
+        sendResponse({
+            success: true,
+            message: `Processus automatique lancé pour: ${item.title}`
+        });
 
-        console.log(`[Vinted Republisher] Session terminée: ${sessionId}`);
+    } catch (error) {
+        console.error('[Background PRO] ❌ Erreur republication automatique:', error);
+
+        await updateRepublishStatus(item.id, {
+            status: 'ERROR',
+            title: item.title,
+            error: error.message,
+            timestamp: Date.now()
+        });
+
+        sendResponse({ success: false, error: error.message });
     }
+}
 
-    getSession(sessionId) {
-        return this.sessions.get(sessionId) || null;
+// Fonction injectée dans la page pour démarrer le processus
+function startAutoRepublishProcess(item, settings) {
+    console.log('[Auto-Republish] 🚀 Démarrage du processus pour:', item.title);
+
+    // Attendre que les scripts soient chargés
+    const waitForScripts = () => {
+        return new Promise((resolve) => {
+            const checkScripts = () => {
+                if (window.vinted && window.vintedBot && window.republishVinted && window.autoRepublish) {
+                    resolve();
+                } else {
+                    setTimeout(checkScripts, 1000);
+                }
+            };
+            checkScripts();
+        });
+    };
+
+    waitForScripts().then(async () => {
+        try {
+            console.log('[Auto-Republish] ✅ Scripts chargés, démarrage...');
+
+            // 1. Configurer les paramètres d'images si nécessaire
+            if (window.vinted.setImageSettings) {
+                window.vinted.setImageSettings(settings);
+            }
+
+            // 2. Extraire et traiter l'article
+            console.log('[Auto-Republish] 📋 Extraction et traitement...');
+            const extractResult = await window.republishVinted();
+
+            if (!extractResult) {
+                throw new Error('Échec de l\'extraction');
+            }
+
+            // 3. Lancer le processus automatique complet
+            console.log('[Auto-Republish] 🤖 Lancement du processus automatique...');
+            const result = await window.autoRepublish(item.id);
+
+            console.log('[Auto-Republish] ✅ Processus terminé:', result);
+
+        } catch (error) {
+            console.error('[Auto-Republish] ❌ Erreur:', error);
+
+            // Mettre à jour le statut d'erreur
+            chrome.storage.local.set({
+                [`republish_status_${item.id}`]: {
+                    status: 'ERROR',
+                    title: item.title,
+                    error: error.message,
+                    timestamp: Date.now()
+                }
+            });
+        }
+    });
+}
+
+// === GESTIONNAIRE SCAN DES ARTICLES ===
+async function handleScanItems(sendResponse) {
+    console.log('[Background PRO] 🔍 Démarrage du scan des articles');
+
+    try {
+        if (!globalState.currentTabId) {
+            sendResponse({ success: false, error: 'Aucun onglet Vinted actif' });
+            return;
+        }
+
+        // Exécuter le scan direct dans la page
+        const results = await chrome.scripting.executeScript({
+            target: { tabId: globalState.currentTabId },
+            func: performDirectScanInPage
+        });
+
+        if (results && results[0] && results[0].result) {
+            const scanResult = results[0].result;
+            console.log('[Background PRO] 📊 Résultat scan reçu:', scanResult.items?.length, 'articles');
+
+            // Sauvegarder directement dans le background
+            await chrome.storage.local.set({
+                lastScanResult: {
+                    items: scanResult.items || [],
+                    timestamp: Date.now(),
+                    url: scanResult.url || '',
+                    error: scanResult.error
+                }
+            });
+
+            globalState.scannedItems = scanResult.items || [];
+
+            sendResponse({
+                success: true,
+                message: `${scanResult.items?.length || 0} articles trouvés`,
+                items: scanResult.items || []
+            });
+        } else {
+            throw new Error('Aucun résultat reçu du script');
+        }
+
+    } catch (error) {
+        console.error('[Background PRO] ❌ Erreur scan:', error);
+
+        // Sauvegarder l'erreur
+        await chrome.storage.local.set({
+            lastScanResult: {
+                items: [],
+                error: error.message,
+                timestamp: Date.now()
+            }
+        });
+
+        sendResponse({ success: false, error: error.message });
     }
+}
 
-    async logActivity(data) {
-        const { sessionId, level, message, timestamp } = data;
+// Fonction directe de scan - sans dépendance aux scripts externes
+function performDirectScan() {
+    console.log('[Scan] 🔍 SCAN DIRECT - Pas d\'attente, scan immédiat');
 
-        if (sessionId) {
-            const session = this.sessions.get(sessionId);
-            if (session) {
-                session.logs.push({
-                    level: level || 'info',
-                    message,
-                    timestamp: timestamp || Date.now()
+    try {
+        const items = [];
+
+        // Vérifier si on est sur une page d'annonce individuelle
+        if (window.location.href.includes('/items/')) {
+            console.log('[Scan] 📄 Page d\'annonce individuelle détectée');
+
+            const match = window.location.href.match(/\/items\/(\d+)/);
+            if (match) {
+                const itemId = match[1];
+                const title = document.querySelector('h1, [data-testid*="title"]')?.textContent?.trim() || `Article #${itemId}`;
+                const price = document.querySelector('[data-testid*="price"], .price')?.textContent?.trim() || 'N/A';
+                const img = document.querySelector('img[src*="images"]');
+
+                items.push({
+                    id: itemId,
+                    title: title,
+                    price: price,
+                    image: img?.src || null,
+                    isDraft: false,
+                    url: window.location.href
                 });
 
-                // Limiter le nombre de logs pour éviter la surcharge mémoire
-                if (session.logs.length > 100) {
-                    session.logs = session.logs.slice(-50);
-                }
-
-                await this.saveSessionToStorage(session);
+                console.log('[Scan] ✅ Article individuel trouvé:', title);
             }
+        } else {
+            // Scanner pour les pages de listing
+            console.log('[Scan] 📋 Scan des pages de listing...');
+
+            const selectors = [
+                '.feed-grid__item',
+                '.item-box',
+                '.listing-item',
+                '.item',
+                '[data-testid*="item"]',
+                'article',
+                '.item-card'
+            ];
+
+            let elements = [];
+            for (const selector of selectors) {
+                elements = document.querySelectorAll(selector);
+                if (elements.length > 0) {
+                    console.log('[Scan] ✅ Éléments trouvés avec:', selector, '(', elements.length, ')');
+                    break;
+                }
+            }
+
+            if (elements.length === 0) {
+                console.log('[Scan] ⚠️ Aucun élément trouvé, essai avec sélecteur général...');
+                elements = document.querySelectorAll('*[href*="/items/"]').slice(0, 50);
+                console.log('[Scan] 📊 Liens trouvés:', elements.length);
+            }
+
+            console.log(`[Scan] 📊 Processing ${elements.length} éléments...`);
+
+            elements.forEach((element, index) => {
+                try {
+                    // Extraire l'ID depuis les liens
+                    let itemId = null;
+                    let linkElement = element.querySelector('a[href*="/items/"]') || (element.href ? element : null);
+
+                    if (linkElement && linkElement.href) {
+                        // Filtrer les liens non-articles (favourite_list, etc.)
+                        if (linkElement.href.includes('favourite_list') ||
+                            linkElement.href.includes('member/items') ||
+                            !linkElement.href.match(/\/items\/\d+/)) {
+                            return; // Skip les liens non-articles
+                        }
+
+                        const match = linkElement.href.match(/\/items\/(\d+)/);
+                        if (match) {
+                            itemId = match[1];
+                        }
+                    }
+
+                    if (!itemId) return; // Skip si pas d'ID
+
+                    // Extraire les autres infos
+                    const img = element.querySelector('img');
+                    const imageUrl = img ? img.src : null;
+
+                    // Logique améliorée pour prix et titre
+                    let price = 'N/A';
+                    let title = `Article #${itemId}`;
+
+                    // Chercher le prix d'abord (souvent affiché prominemment)
+                    const priceSelectors = [
+                        '*[class*="price"]',
+                        '[data-testid*="price"]',
+                        '.price',
+                        '.item-price'
+                    ];
+
+                    for (const selector of priceSelectors) {
+                        const priceEl = element.querySelector(selector);
+                        if (priceEl && priceEl.textContent.trim().match(/\d+[,.]?\d*\s*€/)) {
+                            price = priceEl.textContent.trim();
+                            break;
+                        }
+                    }
+
+                    // Chercher le titre (éviter les éléments de prix)
+                    const titleSelectors = [
+                        '[data-testid*="title"]',
+                        '.title',
+                        'h3',
+                        'h4',
+                        '.item-title',
+                        '*[class*="title"]'
+                    ];
+
+                    for (const selector of titleSelectors) {
+                        const titleEl = element.querySelector(selector);
+                        if (titleEl && titleEl.textContent.trim() &&
+                            !titleEl.textContent.trim().match(/^\d+[,.]?\d*\s*€$/)) {
+                            title = titleEl.textContent.trim();
+                            break;
+                        }
+                    }
+
+                    // Si le titre ressemble à un prix, utiliser le lien ou un titre par défaut
+                    if (title.match(/^\d+[,.]?\d*\s*€$/)) {
+                        const linkText = linkElement.textContent.trim();
+                        if (linkText && !linkText.match(/^\d+[,.]?\d*\s*€$/)) {
+                            title = linkText;
+                        } else {
+                            title = `Article #${itemId}`;
+                        }
+                    }
+
+                    const statusElement = element.querySelector('[data-testid*="status"], .status, *[class*="draft"]');
+                    const isDraft = statusElement && statusElement.textContent.includes('Brouillon');
+
+                    // Éviter les doublons
+                    const exists = items.find(item => item.id === itemId);
+                    if (!exists) {
+                        items.push({
+                            id: itemId,
+                            title: title,
+                            price: price,
+                            image: imageUrl,
+                            isDraft: isDraft,
+                            url: `https://www.vinted.fr/items/${itemId}`
+                        });
+                    }
+
+                } catch (error) {
+                    console.error('[Scan] ❌ Erreur scan élément:', error);
+                }
+            });
         }
 
-        // Log global
-        const logEntry = {
-            level: level || 'info',
-            message,
-            timestamp: timestamp || Date.now(),
-            sessionId
+        console.log('[Scan] ✅ Scan direct terminé:', items.length, 'articles uniques');
+
+        return {
+            items: items,
+            url: window.location.href,
+            timestamp: Date.now()
         };
 
-        await this.saveGlobalLog(logEntry);
+    } catch (error) {
+        console.error('[Scan] ❌ Erreur scan direct:', error);
+        return {
+            items: [],
+            error: error.message,
+            url: window.location.href
+        };
     }
+}
 
-    async checkPermissions() {
-        try {
-            // Vérifier les permissions de base
-            const hasActiveTab = await chrome.permissions.contains({
-                permissions: ['activeTab']
-            });
 
-            const hasStorage = await chrome.permissions.contains({
-                permissions: ['storage']
-            });
 
-            const hasHostPermissions = await chrome.permissions.contains({
-                origins: ['https://www.vinted.fr/*', 'https://vinted.fr/*']
-            });
+// Fonction directe de republication - sans dépendance aux scripts externes
+function startDirectRepublishProcess(item, settings) {
+    console.log('[Direct-Republish] 🚀 Processus direct pour:', item.title);
+    console.log('[Direct-Republish] 🛡️ MODE SÉCURISÉ - Création de brouillon uniquement');
 
-            return hasActiveTab && hasStorage && hasHostPermissions;
-        } catch (error) {
-            console.error('Erreur vérification permissions:', error);
-            return false;
+    try {
+        // Vérifier si on est sur la bonne page (article individuel)
+        if (!window.location.href.includes(`/items/${item.id}`)) {
+            console.log('[Direct-Republish] 🔄 Navigation vers l\'article...');
+            window.location.href = `https://www.vinted.fr/items/${item.id}`;
+
+            // Sauvegarder l'état pour continuer après la navigation
+            localStorage.setItem(`vinted_direct_process_${item.id}`, JSON.stringify({
+                item: item,
+                settings: settings,
+                step: 'NAVIGATE_TO_ITEM',
+                timestamp: Date.now()
+            }));
+
+            return;
         }
-    }
 
-    handleTabUpdate(tabId, changeInfo, tab) {
-        // Injecter le content script si c'est une page Vinted
-        if (changeInfo.status === 'complete' && tab.url && this.isVintedUrl(tab.url)) {
-            this.injectContentScript(tabId);
+        console.log('[Direct-Republish] 📋 Extraction des données de l\'article...');
+
+        // Extraire les données de l'article actuel
+        const itemData = extractItemDataDirect();
+
+        if (!itemData.title) {
+            throw new Error('Impossible d\'extraire les données de l\'article');
         }
 
-        // Vérifier si un onglet avec une session active a changé
-        for (const [sessionId, session] of this.sessions.entries()) {
-            if (session.tabId === tabId && session.status === 'active') {
-                if (changeInfo.status === 'complete' && tab.url) {
-                    // Notifier le content script que la page est chargée
-                    this.notifyContentScriptReady(tabId, sessionId);
-                }
-            }
-        }
-    }
+        console.log('[Direct-Republish] ✅ Données extraites:', itemData.title);
 
-    isVintedUrl(url) {
-        return url.includes('vinted.fr') || url.includes('vinted.com');
-    }
+        // Sauvegarder les données
+        localStorage.setItem(`vinted_item_${item.id}`, JSON.stringify({
+            ...itemData,
+            status: 'EXTRACTED',
+            extractedAt: new Date().toISOString()
+        }));
 
-    async injectContentScript(tabId) {
-        try {
-            await chrome.scripting.executeScript({
-                target: { tabId: tabId },
-                files: ['content.js']
-            });
-            console.log(`[Vinted Republisher] Content script injecté dans l'onglet ${tabId}`);
-        } catch (error) {
-            console.warn(`[Vinted Republisher] Erreur injection content script:`, error);
-        }
-    }
+        // Naviguer vers la page de création
+        console.log('[Direct-Republish] 🔄 Navigation vers la création d\'annonce...');
 
-    handleTabRemoved(tabId) {
-        // Marquer les sessions de cet onglet comme interrompues
-        for (const [sessionId, session] of this.sessions.entries()) {
-            if (session.tabId === tabId && session.status === 'active') {
-                session.status = 'interrupted';
-                session.endTime = Date.now();
-                this.saveSessionToStorage(session);
-                console.log(`[Vinted Republisher] Session interrompue: ${sessionId}`);
-            }
-        }
-    }
+        // Sauvegarder l'état pour continuer après la navigation
+        localStorage.setItem(`vinted_direct_process_${item.id}`, JSON.stringify({
+            item: item,
+            settings: settings,
+            step: 'CREATE_DRAFT',
+            timestamp: Date.now()
+        }));
 
-    async saveSessionToStorage(session) {
-        try {
-            const key = `session_${session.id}`;
-            await chrome.storage.local.set({ [key]: session });
-        } catch (error) {
-            console.error('Erreur sauvegarde session:', error);
-        }
-    }
+        window.location.href = 'https://www.vinted.fr/items/new';
 
-    async saveSessionStats(session) {
-        try {
-            // Récupérer les stats existantes
-            const result = await chrome.storage.local.get(['sessionStats']);
-            const stats = result.sessionStats || {
-                totalSessions: 0,
-                totalItemsProcessed: 0,
-                totalItemsSuccessful: 0,
-                totalItemsFailed: 0,
-                totalDuration: 0,
-                lastSession: null
-            };
+    } catch (error) {
+        console.error('[Direct-Republish] ❌ Erreur:', error);
 
-            // Mettre à jour
-            stats.totalSessions++;
-            stats.totalItemsProcessed += session.itemsProcessed;
-            stats.totalItemsSuccessful += session.itemsSuccessful;
-            stats.totalItemsFailed += session.itemsFailed;
-            stats.totalDuration += session.duration || 0;
-            stats.lastSession = Date.now();
+        // Nettoyer les données temporaires
+        localStorage.removeItem(`vinted_direct_process_${item.id}`);
 
-            await chrome.storage.local.set({ sessionStats: stats });
-        } catch (error) {
-            console.error('Erreur sauvegarde stats:', error);
-        }
-    }
-
-    async saveGlobalLog(logEntry) {
-        try {
-            const result = await chrome.storage.local.get(['globalLogs']);
-            const logs = result.globalLogs || [];
-
-            logs.push(logEntry);
-
-            // Garder seulement les 200 derniers logs
-            if (logs.length > 200) {
-                logs.splice(0, logs.length - 200);
-            }
-
-            await chrome.storage.local.set({ globalLogs: logs });
-        } catch (error) {
-            console.error('Erreur sauvegarde log global:', error);
-        }
-    }
-
-    async notifyPopupUpdate(sessionId, session) {
-        try {
-            // Essayer de notifier tous les onglets popup ouverts
-            const views = chrome.extension.getViews({ type: 'popup' });
-            views.forEach(view => {
-                if (view.updateSessionData) {
-                    view.updateSessionData(sessionId, session);
+        // Mettre à jour le statut d'erreur
+        if (typeof chrome !== 'undefined' && chrome.storage) {
+            chrome.storage.local.set({
+                [`republish_status_${item.id}`]: {
+                    status: 'ERROR',
+                    title: item.title,
+                    error: error.message,
+                    timestamp: Date.now()
                 }
             });
-        } catch (error) {
-            // Le popup n'est peut-être pas ouvert, c'est normal
-        }
-    }
-
-    async notifyContentScriptReady(tabId, sessionId) {
-        try {
-            await chrome.tabs.sendMessage(tabId, {
-                action: 'sessionReady',
-                sessionId: sessionId
-            });
-        } catch (error) {
-            // Le content script n'est peut-être pas encore chargé
-            console.warn('Impossible de notifier le content script:', error);
-        }
-    }
-
-    generateSessionId() {
-        return `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    }
-
-    // Méthodes utilitaires pour les statistiques
-    async getSessionStats() {
-        try {
-            const result = await chrome.storage.local.get(['sessionStats']);
-            return result.sessionStats || {
-                totalSessions: 0,
-                totalItemsProcessed: 0,
-                totalItemsSuccessful: 0,
-                totalItemsFailed: 0,
-                totalDuration: 0,
-                lastSession: null
-            };
-        } catch (error) {
-            console.error('Erreur récupération stats:', error);
-            return null;
-        }
-    }
-
-    async getRecentSessions(limit = 10) {
-        try {
-            const result = await chrome.storage.local.get();
-            const sessions = [];
-
-            for (const [key, value] of Object.entries(result)) {
-                if (key.startsWith('session_') && value.id) {
-                    sessions.push(value);
-                }
-            }
-
-            // Trier par date de début décroissante
-            sessions.sort((a, b) => b.startTime - a.startTime);
-
-            return sessions.slice(0, limit);
-        } catch (error) {
-            console.error('Erreur récupération sessions:', error);
-            return [];
-        }
-    }
-
-    async clearOldSessions(olderThanDays = 7) {
-        try {
-            const cutoffTime = Date.now() - (olderThanDays * 24 * 60 * 60 * 1000);
-            const result = await chrome.storage.local.get();
-            const keysToRemove = [];
-
-            for (const [key, value] of Object.entries(result)) {
-                if (key.startsWith('session_') && value.startTime && value.startTime < cutoffTime) {
-                    keysToRemove.push(key);
-                }
-            }
-
-            if (keysToRemove.length > 0) {
-                await chrome.storage.local.remove(keysToRemove);
-                console.log(`[Vinted Republisher] ${keysToRemove.length} sessions anciennes supprimées`);
-            }
-        } catch (error) {
-            console.error('Erreur nettoyage sessions:', error);
         }
     }
 }
 
-// Initialiser le gestionnaire background
-const backgroundManager = new BackgroundManager();
+// Fonction d'extraction directe des données d'article
+function extractItemDataDirect() {
+    const data = {
+        title: '',
+        price: '',
+        description: '',
+        brand: '',
+        size: '',
+        condition: '',
+        color: '',
+        category: '',
+        material: '',
+        imageUrls: [],
+        itemId: '',
+        url: window.location.href
+    };
 
-// Nettoyer les anciennes sessions au démarrage
-backgroundManager.clearOldSessions(7);
+    // Extraire l'ID de l'URL
+    const match = window.location.href.match(/\/items\/(\d+)/);
+    if (match) {
+        data.itemId = match[1];
+    }
+
+    // Extraire le titre
+    const titleEl = document.querySelector('h1, [data-testid*="title"]');
+    if (titleEl) {
+        data.title = titleEl.textContent.trim();
+    }
+
+    // Extraire le prix
+    const priceEl = document.querySelector('[data-testid*="price"], .price');
+    if (priceEl) {
+        data.price = priceEl.textContent.trim();
+    }
+
+    // Extraire la description
+    const descEl = document.querySelector('[data-testid*="description"], .description');
+    if (descEl) {
+        data.description = descEl.textContent.trim();
+    }
+
+    // Extraire les images
+    const images = document.querySelectorAll('img[src*="images"]');
+    images.forEach(img => {
+        if (img.src && !data.imageUrls.includes(img.src)) {
+            data.imageUrls.push(img.src);
+        }
+    });
+
+    console.log('[Direct-Extract] ✅ Données extraites:', {
+        title: data.title,
+        price: data.price,
+        images: data.imageUrls.length
+    });
+
+    return data;
+}
+
+// Mettre à jour le statut de republication
+async function updateRepublishStatus(itemId, status) {
+    try {
+        await chrome.storage.local.set({
+            [`republish_status_${itemId}`]: status
+        });
+        console.log('[Background PRO] 📊 Statut mis à jour:', itemId, status.status);
+    } catch (error) {
+        console.error('[Background PRO] ❌ Erreur mise à jour statut:', error);
+    }
+}
+
+// 🎯 DEBUG: Afficher l'état des queues toutes les 30 secondes
+setInterval(() => {
+    const queueSizes = Array.from(contentScriptQueues.entries()).map(([tabId, queue]) => `${tabId}:${queue.length}`);
+    if (queueSizes.length > 0) {
+        console.log('[Background PRO] 📊 État queues:', queueSizes.join(', '));
+    }
+}, 30000);
+
+// === AUTOMATION COMPLÈTE - COMME LES VRAIES EXTENSIONS ===
+async function handleFullAutomation(request, sendResponse) {
+    console.log('[Background PRO] 🤖 AUTOMATION COMPLÈTE démarrée pour item:', request.itemId);
+
+    try {
+        // Récupérer l'onglet actif
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+
+        if (!tab) {
+            sendResponse({ success: false, error: 'Aucun onglet actif trouvé' });
+            return;
+        }
+
+        // Envoyer la commande d'automation au moteur d'automation dans la page
+        const result = await chrome.scripting.executeScript({
+            target: { tabId: tab.id },
+            func: startAutomationProcess,
+            args: [request.itemId, request.settings]
+        });
+
+        console.log('[Background PRO] ✅ Automation lancée avec succès');
+        sendResponse({ success: true, message: 'Automation démarrée' });
+
+    } catch (error) {
+        console.error('[Background PRO] ❌ Erreur automation complète:', error);
+        sendResponse({ success: false, error: error.message });
+    }
+}
+
+// Fonction injectée dans la page pour démarrer l'automation
+function startAutomationProcess(itemId, settings) {
+    console.log('[Automation Inject] 🚀 Démarrage processus pour item:', itemId);
+
+    // Vérifier que le moteur d'automation est prêt
+    if (window.VINTED_AUTOMATION_READY) {
+        console.log('[Automation Inject] ✅ Moteur d\'automation détecté, envoi du message...');
+    } else {
+        console.log('[Automation Inject] ⚠️ Moteur d\'automation pas encore prêt, tentative quand même...');
+    }
+
+    // Envoyer message au moteur d'automation
+    window.postMessage({
+        type: 'VINTED_AUTOMATION_START',
+        itemId: itemId,
+        settings: settings
+    }, '*');
+
+    console.log('[Automation Inject] 📤 Message postMessage envoyé pour item:', itemId);
+
+    return { success: true, message: 'Commande envoyée au moteur' };
+}
+
+// === FONCTION DE SCAN INJECTÉE DANS LA PAGE ===
+function performDirectScanInPage() {
+    console.log('[Scan Direct] 🔍 SCAN DIRECT - Démarrage immédiat');
+
+    try {
+        const items = [];
+
+        // Vérifier si on est sur une page d'article individuelle
+        if (window.location.href.includes('/items/') && window.location.href.match(/\/items\/\d+/)) {
+            console.log('[Scan Direct] 📋 Page d\'article individuelle détectée');
+
+            const match = window.location.href.match(/\/items\/(\d+)/);
+            if (match) {
+                const itemId = match[1];
+                const title = document.querySelector('h1, [data-testid*="title"]')?.textContent?.trim() || `Article #${itemId}`;
+                const price = document.querySelector('[data-testid*="price"], .price')?.textContent?.trim() || 'N/A';
+                const img = document.querySelector('img[src*="images"]');
+
+                items.push({
+                    id: itemId,
+                    title: title,
+                    price: price,
+                    image: img?.src || null,
+                    isDraft: false,
+                    url: `https://www.vinted.fr/items/${itemId}`
+                });
+
+                console.log('[Scan Direct] ✅ Article individuel scanné:', title);
+            }
+        } else {
+            // Scan des pages de listing
+            console.log('[Scan Direct] 📋 Scan des pages de listing...');
+
+            const selectors = [
+                '.feed-grid__item', '.item-box', '.listing-item', '.item',
+                '[data-testid*="item"]', 'article', '.item-card'
+            ];
+
+            let elements = [];
+            for (const selector of selectors) {
+                elements = document.querySelectorAll(selector);
+                if (elements.length > 0) {
+                    console.log('[Scan Direct] ✅ Éléments trouvés avec:', selector, '(', elements.length, ')');
+                    break;
+                }
+            }
+
+            if (elements.length === 0) {
+                console.log('[Scan Direct] ⚠️ Aucun élément trouvé, essai avec sélecteur général...');
+                elements = document.querySelectorAll('*[href*="/items/"]').slice(0, 50);
+                console.log('[Scan Direct] 📊 Liens trouvés:', elements.length);
+            }
+
+            console.log(`[Scan Direct] 📊 Processing ${elements.length} éléments...`);
+
+            elements.forEach((element, index) => {
+                try {
+                    let itemId = null;
+                    let linkElement = element.querySelector('a[href*="/items/"]') || (element.href ? element : null);
+
+                    if (linkElement && linkElement.href) {
+                        // Filtrer les liens non-articles
+                        if (linkElement.href.includes('favourite_list') ||
+                            linkElement.href.includes('member/items') ||
+                            !linkElement.href.match(/\/items\/\d+/)) {
+                            return;
+                        }
+
+                        const match = linkElement.href.match(/\/items\/(\d+)/);
+                        if (match) {
+                            itemId = match[1];
+                        }
+                    }
+
+                    if (!itemId) return;
+
+                    const img = element.querySelector('img');
+                    const imageUrl = img ? img.src : null;
+
+                    let price = 'N/A';
+                    let title = `Article #${itemId}`;
+
+                    // Chercher le prix
+                    const priceSelectors = ['*[class*="price"]', '[data-testid*="price"]', '.price', '.item-price'];
+                    for (const selector of priceSelectors) {
+                        const priceEl = element.querySelector(selector);
+                        if (priceEl && priceEl.textContent.trim().match(/\d+[,.]?\d*\s*€/)) {
+                            price = priceEl.textContent.trim();
+                            break;
+                        }
+                    }
+
+                    // Chercher le titre
+                    const titleSelectors = ['[data-testid*="title"]', '.title', 'h3', 'h4', '.item-title', '*[class*="title"]'];
+                    for (const selector of titleSelectors) {
+                        const titleEl = element.querySelector(selector);
+                        if (titleEl && titleEl.textContent.trim() &&
+                            !titleEl.textContent.trim().match(/^\d+[,.]?\d*\s*€$/)) {
+                            title = titleEl.textContent.trim();
+                            break;
+                        }
+                    }
+
+                    // Si le titre ressemble à un prix, utiliser le lien
+                    if (title.match(/^\d+[,.]?\d*\s*€$/)) {
+                        const linkText = linkElement.textContent.trim();
+                        if (linkText && !linkText.match(/^\d+[,.]?\d*\s*€$/)) {
+                            title = linkText;
+                        } else {
+                            title = `Article #${itemId}`;
+                        }
+                    }
+
+                    // Détecter les brouillons
+                    const isDraft = element.textContent.toLowerCase().includes('brouillon') ||
+                        element.textContent.toLowerCase().includes('draft');
+
+                    // Éviter les doublons
+                    const exists = items.find(item => item.id === itemId);
+                    if (!exists) {
+                        items.push({
+                            id: itemId,
+                            title: title,
+                            price: price,
+                            image: imageUrl,
+                            isDraft: isDraft,
+                            url: `https://www.vinted.fr/items/${itemId}`
+                        });
+                    }
+
+                } catch (error) {
+                    console.error('[Scan Direct] ❌ Erreur scan élément:', error);
+                }
+            });
+        }
+
+        console.log('[Scan Direct] ✅ Scan terminé:', items.length, 'articles uniques');
+        return {
+            items: items,
+            url: window.location.href,
+            timestamp: Date.now()
+        };
+
+    } catch (error) {
+        console.error('[Scan Direct] ❌ Erreur scan:', error);
+        return {
+            items: [],
+            error: error.message,
+            url: window.location.href
+        };
+    }
+}
+
+console.log('[Background PRO] 🎯 Architecture de communication professionnelle initialisée');

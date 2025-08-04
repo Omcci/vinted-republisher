@@ -1,92 +1,56 @@
 /**
- * Module de traitement d'images pour éviter la détection de doublons par Vinted
- * Techniques utilisées : recadrage, watermark, rotation, compression
+ * Module de traitement d'images pour Vinted Auto Republisher
+ * Gère le recadrage, rotation, watermark et réduction de qualité
  */
 
 class ImageProcessor {
     constructor() {
-        this.canvas = null;
-        this.ctx = null;
-        this.init();
-    }
-
-    init() {
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d');
     }
 
     /**
-     * Traite une image selon les paramètres fournis
-     * @param {string} imageUrl - URL de l'image à traiter
-     * @param {Object} settings - Paramètres de traitement
-     * @returns {Promise<Blob>} - Image traitée
+     * Modifie une image selon les paramètres donnés
+     * @param {string} imageUrl - URL de l'image à modifier
+     * @param {Object} settings - Paramètres de modification
+     * @returns {Promise<string>} - URL de l'image modifiée (base64)
      */
-    async processImage(imageUrl, settings = {}) {
-        const {
-            cropPercentage = 5,
-            addWatermark = true,
-            watermarkText = '',
-            rotationAngle = 0.5,
-            qualityReduction = 5
-        } = settings;
+    async modifyImage(imageUrl, settings) {
+        console.log('[ImageProcessor] Début modification image:', settings);
 
         try {
             // Charger l'image
-            const img = await this.loadImage(imageUrl);
+            const image = await this.loadImage(imageUrl);
 
-            // Calculer les nouvelles dimensions avec le recadrage
-            const cropAmount = cropPercentage / 100;
-            const newWidth = Math.floor(img.width * (1 - cropAmount));
-            const newHeight = Math.floor(img.height * (1 - cropAmount));
+            // Appliquer les modifications
+            let processedImage = image;
 
-            // Configurer le canvas
-            this.canvas.width = newWidth;
-            this.canvas.height = newHeight;
-
-            // Nettoyer le canvas
-            this.ctx.clearRect(0, 0, newWidth, newHeight);
-
-            // Appliquer la rotation si nécessaire
-            if (rotationAngle !== 0) {
-                this.ctx.save();
-                this.ctx.translate(newWidth / 2, newHeight / 2);
-                this.ctx.rotate((rotationAngle * Math.PI) / 180);
-                this.ctx.translate(-newWidth / 2, -newHeight / 2);
+            // 1. Recadrage
+            if (settings.cropPercentage && settings.cropPercentage > 0) {
+                processedImage = this.cropImage(processedImage, settings.cropPercentage);
             }
 
-            // Dessiner l'image recadrée
-            const cropX = Math.floor(img.width * cropAmount / 2);
-            const cropY = Math.floor(img.height * cropAmount / 2);
-            const cropWidth = img.width - (cropX * 2);
-            const cropHeight = img.height - (cropY * 2);
-
-            this.ctx.drawImage(
-                img,
-                cropX, cropY, cropWidth, cropHeight,
-                0, 0, newWidth, newHeight
-            );
-
-            // Restaurer le contexte si rotation appliquée
-            if (rotationAngle !== 0) {
-                this.ctx.restore();
+            // 2. Rotation
+            if (settings.rotationAngle && settings.rotationAngle !== 0) {
+                processedImage = this.rotateImage(processedImage, settings.rotationAngle);
             }
 
-            // Ajouter un watermark si demandé
-            if (addWatermark) {
-                await this.addWatermark(watermarkText, newWidth, newHeight);
+            // 3. Watermark
+            if (settings.addWatermark && settings.watermarkText) {
+                processedImage = this.addWatermark(processedImage, settings.watermarkText);
             }
 
-            // Ajouter du bruit invisible pour changer le hash
-            this.addInvisibleNoise();
+            // 4. Réduction de qualité
+            const quality = settings.qualityReduction ? (100 - settings.qualityReduction) / 100 : 0.95;
 
-            // Convertir en blob avec compression
-            const quality = (100 - qualityReduction) / 100;
-            return new Promise((resolve) => {
-                this.canvas.toBlob(resolve, 'image/jpeg', quality);
-            });
+            // Convertir en base64
+            const result = this.canvasToBase64(processedImage, quality);
+
+            console.log('[ImageProcessor] Image modifiée avec succès');
+            return result;
 
         } catch (error) {
-            console.error('Erreur lors du traitement de l\'image:', error);
+            console.error('[ImageProcessor] Erreur modification image:', error);
             throw error;
         }
     }
@@ -94,173 +58,166 @@ class ImageProcessor {
     /**
      * Charge une image depuis une URL
      * @param {string} url - URL de l'image
-     * @returns {Promise<HTMLImageElement>} - Image chargée
+     * @returns {Promise<HTMLImageElement>}
      */
     loadImage(url) {
         return new Promise((resolve, reject) => {
             const img = new Image();
-            img.crossOrigin = 'anonymous';
+            img.crossOrigin = 'anonymous'; // Pour éviter les erreurs CORS
 
             img.onload = () => resolve(img);
-            img.onerror = () => reject(new Error('Impossible de charger l\'image'));
-
-            // Si l'URL est relative, la convertir en URL complète
-            if (url.startsWith('//')) {
-                url = 'https:' + url;
-            } else if (url.startsWith('/')) {
-                url = window.location.origin + url;
-            }
+            img.onerror = () => {
+                console.warn('[ImageProcessor] Erreur CORS, tentative sans crossOrigin');
+                // Retenter sans crossOrigin
+                const img2 = new Image();
+                img2.onload = () => resolve(img2);
+                img2.onerror = () => reject(new Error('Impossible de charger l\'image'));
+                img2.src = url;
+            };
 
             img.src = url;
         });
     }
 
     /**
-     * Ajoute un watermark à l'image
+     * Recadre une image
+     * @param {HTMLImageElement} image - Image à recadrer
+     * @param {number} percentage - Pourcentage de recadrage (0-100)
+     * @returns {HTMLCanvasElement}
+     */
+    cropImage(image, percentage) {
+        const cropAmount = percentage / 100;
+        const cropPixels = Math.min(image.width, image.height) * cropAmount;
+
+        // Calculer les nouvelles dimensions
+        const newWidth = image.width - (cropPixels * 2);
+        const newHeight = image.height - (cropPixels * 2);
+
+        // Créer un nouveau canvas
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+
+        // Dessiner l'image recadrée
+        ctx.drawImage(
+            image,
+            cropPixels, cropPixels, newWidth, newHeight, // Source
+            0, 0, newWidth, newHeight // Destination
+        );
+
+        return canvas;
+    }
+
+    /**
+     * Fait pivoter une image
+     * @param {HTMLImageElement|HTMLCanvasElement} image - Image à faire pivoter
+     * @param {number} angle - Angle en degrés
+     * @returns {HTMLCanvasElement}
+     */
+    rotateImage(image, angle) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        // Convertir en radians
+        const radians = (angle * Math.PI) / 180;
+
+        // Calculer les nouvelles dimensions
+        const cos = Math.abs(Math.cos(radians));
+        const sin = Math.abs(Math.sin(radians));
+
+        const newWidth = image.width * cos + image.height * sin;
+        const newHeight = image.width * sin + image.height * cos;
+
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+
+        // Centrer l'image
+        ctx.translate(newWidth / 2, newHeight / 2);
+        ctx.rotate(radians);
+        ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+        return canvas;
+    }
+
+    /**
+     * Ajoute un watermark à une image
+     * @param {HTMLImageElement|HTMLCanvasElement} image - Image de base
      * @param {string} text - Texte du watermark
-     * @param {number} width - Largeur de l'image
-     * @param {number} height - Hauteur de l'image
+     * @returns {HTMLCanvasElement}
      */
-    async addWatermark(text, width, height) {
-        // Si pas de texte spécifié, utiliser un watermark invisible
-        if (!text || text.trim() === '') {
-            return this.addInvisibleWatermark(width, height);
-        }
+    addWatermark(image, text) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
 
-        // Sauvegarder le contexte
-        this.ctx.save();
+        canvas.width = image.width;
+        canvas.height = image.height;
 
-        // Configuration du texte
-        const fontSize = Math.max(12, Math.min(width, height) * 0.03);
-        this.ctx.font = `${fontSize}px Arial`;
-        this.ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        this.ctx.textAlign = 'center';
-        this.ctx.textBaseline = 'middle';
+        // Dessiner l'image de base
+        ctx.drawImage(image, 0, 0);
 
-        // Rotation pour le watermark en diagonal
-        this.ctx.translate(width / 2, height / 2);
-        this.ctx.rotate(-Math.PI / 6);
+        // Configurer le style du watermark
+        ctx.font = `${Math.max(12, image.width / 20)}px Arial`;
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)'; // Blanc semi-transparent
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)'; // Contour noir
+        ctx.lineWidth = 1;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
 
+        // Position du watermark (coin inférieur droit)
+        const x = image.width * 0.85;
+        const y = image.height * 0.85;
+
+        // Dessiner le contour
+        ctx.strokeText(text, x, y);
         // Dessiner le texte
-        this.ctx.fillText(text, 0, 0);
+        ctx.fillText(text, x, y);
 
-        // Restaurer le contexte
-        this.ctx.restore();
+        return canvas;
     }
 
     /**
-     * Ajoute un watermark invisible (pixels transparents)
-     * @param {number} width - Largeur de l'image
-     * @param {number} height - Hauteur de l'image
+     * Convertit un canvas en base64
+     * @param {HTMLCanvasElement} canvas - Canvas à convertir
+     * @param {number} quality - Qualité (0-1)
+     * @returns {string} - URL base64
      */
-    addInvisibleWatermark(width, height) {
-        // Ajouter quelques pixels transparents dans les coins
-        const positions = [
-            [0, 0], [width - 1, 0], [0, height - 1], [width - 1, height - 1],
-            [width / 2, 0], [0, height / 2], [width - 1, height / 2], [width / 2, height - 1]
-        ];
-
-        positions.forEach(([x, y]) => {
-            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.01)';
-            this.ctx.fillRect(Math.floor(x), Math.floor(y), 1, 1);
-        });
+    canvasToBase64(canvas, quality = 0.95) {
+        return canvas.toDataURL('image/jpeg', quality);
     }
 
     /**
-     * Ajoute du bruit invisible pour changer le hash de l'image
+     * Convertit une URL base64 en Blob
+     * @param {string} base64 - URL base64
+     * @returns {Blob}
      */
-    addInvisibleNoise() {
-        const imageData = this.ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
-        const data = imageData.data;
+    base64ToBlob(base64) {
+        const parts = base64.split(',');
+        const mime = parts[0].match(/:(.*?);/)[1];
+        const bstr = atob(parts[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
 
-        // Modifier légèrement quelques pixels de manière imperceptible
-        for (let i = 0; i < data.length; i += 4000) { // Tous les 1000 pixels environ
-            if (i + 3 < data.length) {
-                // Modifier très légèrement la valeur rouge (±1)
-                const variation = Math.random() > 0.5 ? 1 : -1;
-                data[i] = Math.max(0, Math.min(255, data[i] + variation));
-            }
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
         }
 
-        this.ctx.putImageData(imageData, 0, 0);
+        return new Blob([u8arr], { type: mime });
     }
 
     /**
-     * Convertit un Blob en File avec un nouveau nom
+     * Crée un File à partir d'un Blob
      * @param {Blob} blob - Blob à convertir
-     * @param {string} originalName - Nom original du fichier
-     * @returns {File} - Nouveau fichier
+     * @param {string} filename - Nom du fichier
+     * @returns {File}
      */
-    blobToFile(blob, originalName) {
-        const timestamp = Date.now();
-        const randomSuffix = Math.random().toString(36).substring(2, 8);
-        const extension = originalName.split('.').pop() || 'jpg';
-        const baseName = originalName.replace(/\.[^/.]+$/, '');
-        const newName = `${baseName}_${timestamp}_${randomSuffix}.${extension}`;
-
-        return new File([blob], newName, {
-            type: blob.type,
-            lastModified: timestamp
-        });
-    }
-
-    /**
-     * Traite plusieurs images en lot
-     * @param {Array} imageUrls - URLs des images à traiter
-     * @param {Object} settings - Paramètres de traitement
-     * @param {Function} progressCallback - Callback de progression
-     * @returns {Promise<Array>} - Images traitées
-     */
-    async processBatch(imageUrls, settings, progressCallback) {
-        const results = [];
-
-        for (let i = 0; i < imageUrls.length; i++) {
-            try {
-                const processedBlob = await this.processImage(imageUrls[i], settings);
-                const file = this.blobToFile(processedBlob, `image_${i + 1}.jpg`);
-                results.push(file);
-
-                if (progressCallback) {
-                    progressCallback(i + 1, imageUrls.length);
-                }
-            } catch (error) {
-                console.error(`Erreur lors du traitement de l'image ${i + 1}:`, error);
-                results.push(null);
-            }
-        }
-
-        return results;
-    }
-
-    /**
-     * Génère un aperçu de l'image traitée
-     * @param {string} imageUrl - URL de l'image
-     * @param {Object} settings - Paramètres de traitement
-     * @returns {Promise<string>} - Data URL de l'aperçu
-     */
-    async generatePreview(imageUrl, settings) {
-        try {
-            await this.processImage(imageUrl, settings);
-            return this.canvas.toDataURL('image/jpeg', 0.8);
-        } catch (error) {
-            console.error('Erreur lors de la génération de l\'aperçu:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Nettoie les ressources
-     */
-    destroy() {
-        if (this.canvas) {
-            this.canvas.remove();
-            this.canvas = null;
-            this.ctx = null;
-        }
+    blobToFile(blob, filename) {
+        return new File([blob], filename, { type: blob.type });
     }
 }
 
-// Export pour utilisation dans d'autres scripts
+// Exporter la classe
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = ImageProcessor;
 } else {
