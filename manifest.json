@@ -7,7 +7,8 @@
         "activeTab",
         "storage",
         "tabs",
-        "scripting"
+        "scripting",
+        "webNavigation"
     ],
     "host_permissions": [
         "https://www.vinted.fr/*",
@@ -27,10 +28,7 @@
                 "https://vinted.com/*"
             ],
             "js": [
-                "content.js"
-            ],
-            "css": [
-                "content.css"
+                "content-simple.js"
             ]
         }
     ],
@@ -52,16 +50,20 @@
     },
     "web_accessible_resources": [
         {
-            "resources": [],
+            "resources": [
+                "vinted-extractor.js",
+                "vinted-automator.js",
+                "process-checker.js",
+                "debug-scan.js",
+                "direct-process-checker.js",
+                "vinted-automation-engine.js",
+                "vinted-automation-engine-simple.js",
+                "automation-engine-v2.js",
+                "test-automation.js"
+            ],
             "matches": [
-                "https://www.vinted.fr/*",
-                "https://vinted.fr/*",
-                "https://www.vinted.com/*",
-                "https://vinted.com/*"
+                "<all_urls>"
             ]
         }
-    ],
-    "content_security_policy": {
-        "extension_pages": "script-src 'self'; object-src 'self'"
-    }
+    ]
 }
