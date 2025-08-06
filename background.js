@@ -116,6 +116,13 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 handleFullAutomation(request, sendResponse);
                 return true; // Réponse asynchrone
 
+            // === MESSAGES D'AUTOMATION ===
+            case 'VINTED_AUTOMATION_RESULTS':
+                console.log('[Background PRO] 📊 Réception résultats automation');
+                handleAutomationResults(request.results, request.settings);
+                sendResponse({ success: true });
+                break;
+
             // === RETOUR CONTENT SCRIPT → POPUP ===
             case 'reportScanResult':
                 console.log('[Background PRO] 📊 Résultat scan reçu:', request.items?.length, 'articles');
@@ -728,8 +735,8 @@ async function handleFullAutomation(request, sendResponse) {
 }
 
 // Fonction injectée dans la page pour démarrer l'automation
-function startAutomationProcess(itemId, settings) {
-    console.log('[Automation Inject] 🚀 Démarrage processus pour item:', itemId);
+function startAutomationProcess(items, settings) {
+    console.log('[Automation Inject] 🚀 Démarrage processus pour items:', items);
 
     // Vérifier que le moteur d'automation est prêt
     if (window.VINTED_AUTOMATION_READY) {
@@ -738,17 +745,53 @@ function startAutomationProcess(itemId, settings) {
         console.log('[Automation Inject] ⚠️ Moteur d\'automation pas encore prêt, tentative quand même...');
     }
 
+    // Convertir en array si ce n'est pas déjà le cas
+    const itemsArray = Array.isArray(items) ? items : [items];
+
     // Envoyer message au moteur d'automation
     window.postMessage({
-        type: 'VINTED_AUTOMATION_START',
-        itemId: itemId,
+        action: 'VINTED_AUTOMATION_START',
+        items: itemsArray,
         settings: settings
     }, '*');
 
-    console.log('[Automation Inject] 📤 Message postMessage envoyé pour item:', itemId);
+    console.log('[Automation Inject] 📤 Message postMessage envoyé pour items:', itemsArray);
 
     return { success: true, message: 'Commande envoyée au moteur' };
 }
+
+// Fonction pour gérer les résultats du scraping
+function handleAutomationResults(results, settings) {
+    console.log('[Background Results] 📊 Réception des résultats du scraping:', results);
+
+    if (!results || results.length === 0) {
+        console.log('[Background Results] ⚠️ Aucun résultat reçu');
+        return;
+    }
+
+    // Traiter chaque item scrapé
+    results.forEach((itemData, index) => {
+        console.log(`[Background Results] 📋 Traitement item ${index + 1}:`, itemData.title);
+
+        // Ici on peut ajouter la logique de republication
+        // Pour l'instant, on simule juste le processus
+        console.log(`[Background Results] 🔄 Simulation republication pour:`, itemData.title);
+        console.log(`[Background Results] 💰 Prix:`, itemData.price);
+        console.log(`[Background Results] 🖼️ Images:`, itemData.images.length);
+
+        // Envoyer une notification de progression
+        chrome.notifications.create({
+            type: 'basic',
+            iconUrl: 'icons/icon48.png',
+            title: 'Vinted Auto Republisher',
+            message: `Traitement de: ${itemData.title}`
+        });
+    });
+
+    console.log('[Background Results] 🎉 Traitement de tous les items terminé');
+}
+
+
 
 // === FONCTION DE SCAN INJECTÉE DANS LA PAGE ===
 function performDirectScanInPage() {
