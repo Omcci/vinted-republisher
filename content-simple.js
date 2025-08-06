@@ -94,7 +94,7 @@ function injectAutomationEngine() {
     console.log('[Content] 🔄 Tentative d\'injection du moteur d\'automation...');
 
     const engineScript = document.createElement('script');
-    engineScript.src = chrome.runtime.getURL('automation-engine-v2.js');
+    engineScript.src = chrome.runtime.getURL('automation-engine-fresh.js');
 
     // Supprimer tous les anciens scripts
     const oldScripts = document.querySelectorAll('script[src*="automation"], script[src*="test-automation"]');
@@ -128,3 +128,22 @@ setTimeout(() => {
     console.log('[Content] ⏰ Injection différée du moteur d\'automation...');
     injectAutomationEngine();
 }, 1000);
+
+// === RELAIS DES MESSAGES DE LA PAGE VERS LE BACKGROUND ===
+window.addEventListener('message', function (event) {
+    // Filtrer les messages de notre moteur d'automation
+    if (event.data && event.data.action === 'VINTED_AUTOMATION_RESULTS') {
+        console.log('[Content] 📤 Relais des résultats vers le background script');
+
+        // Transmettre au background script
+        chrome.runtime.sendMessage({
+            action: 'VINTED_AUTOMATION_RESULTS',
+            results: event.data.results,
+            settings: event.data.settings
+        }).then(response => {
+            console.log('[Content] ✅ Résultats transmis au background:', response);
+        }).catch(error => {
+            console.error('[Content] ❌ Erreur transmission résultats:', error);
+        });
+    }
+});
