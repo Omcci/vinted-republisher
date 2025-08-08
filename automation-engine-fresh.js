@@ -172,83 +172,190 @@ try {
                 .filter(src => src && !src.includes('avatar') && !src.includes('icon'));
             console.log('[Automation Engine Fresh] 🔍 DEBUG - Images trouvées:', images.length);
 
-            // === EXTRACTION ROBUSTE DES CARACTÉRISTIQUES ===
-            // Chercher dans tous les éléments de détails
-            const detailsElements = doc.querySelectorAll('.details-list__item, [class*="detail"], [class*="attribute"], [data-testid*="item-attributes"]');
-            console.log('[Automation Engine Fresh] 🔍 DEBUG - Éléments de détails trouvés:', detailsElements.length);
+            // === EXTRACTION ROBUSTE DES CARACTÉRISTIQUES (SANS GUESS) ===
+            const detailsContainer = doc.querySelector('.details-list.details-list--details');
+            const detailItems = detailsContainer ? detailsContainer.querySelectorAll(':scope .details-list__item') : [];
+            console.log('[Automation Engine Fresh] 🔍 DEBUG - Lignes de détails trouvées:', detailItems.length);
+
+            // Debug: Afficher quelques lignes pour validation
+            Array.from(detailItems).slice(0, 10).forEach((element, index) => {
+                console.log(`[Automation Engine Fresh] 🔍 DEBUG - Détail ${index + 1}:`, {
+                    outerHTML: element.outerHTML.substring(0, 200) + '...',
+                    textContent: element.textContent?.trim()
+                });
+            });
 
             let brand = '';
             let size = '';
-            let condition = 'good';
+            let condition = '';
             let material = '';
             let color = '';
             let category = '';
 
-            detailsElements.forEach(element => {
-                const text = element.textContent?.trim() || '';
-                const label = element.querySelector('.details-list__item-title, .label, [class*="title"]')?.textContent?.trim() || '';
-                const value = element.querySelector('.details-list__item-value, .value, [class*="value"]')?.textContent?.trim() || text;
+            const attributes = {};
+            Array.from(detailItems).forEach(item => {
+                // Label: première valeur en sous-titre (ex: Marque, Taille, État, Matière, Couleur)
+                const labelEl = item.querySelector(':scope .details-list__item-value > .web_ui__Text__subtitle, :scope .details-list__item-value span.web_ui__Text__subtitle');
+                const label = labelEl?.textContent?.trim();
+                if (!label) return;
 
-                const lowerLabel = (label || text).toLowerCase();
-                const lowerValue = value.toLowerCase();
+                // Valeur: l'autre .details-list__item-value (souvent avec span.web_ui__Text__bold ou un <a>)
+                const valueContainers = Array.from(item.querySelectorAll(':scope .details-list__item-value')).filter(v => v !== labelEl?.parentElement);
+                let valueText = '';
+                for (const vc of valueContainers) {
+                    const anchor = vc.querySelector('a');
+                    const bold = vc.querySelector('.web_ui__Text__bold');
+                    const raw = (anchor?.textContent || bold?.textContent || vc.textContent || '').trim();
+                    if (raw && raw.toLowerCase() !== label.toLowerCase()) {
+                        valueText = raw.replace(/Menu relatif.*$/i, '').trim();
+                        break;
+                    }
+                }
+                if (!valueText) return;
 
-                console.log('[Automation Engine Fresh] 🔍 DEBUG - Élément:', { label, value, lowerLabel });
-
-                if (lowerLabel.includes('marque') || lowerLabel.includes('brand')) {
-                    brand = value;
-                    console.log('[Automation Engine Fresh] 🔍 DEBUG - Marque trouvée:', brand);
-                }
-                else if (lowerLabel.includes('taille') || lowerLabel.includes('size')) {
-                    size = value;
-                    console.log('[Automation Engine Fresh] 🔍 DEBUG - Taille trouvée:', size);
-                }
-                else if (lowerLabel.includes('état') || lowerLabel.includes('condition') || lowerLabel.includes('status')) {
-                    condition = value;
-                    console.log('[Automation Engine Fresh] 🔍 DEBUG - État trouvé:', condition);
-                }
-                else if (lowerLabel.includes('couleur') || lowerLabel.includes('color')) {
-                    color = value;
-                    console.log('[Automation Engine Fresh] 🔍 DEBUG - Couleur trouvée:', color);
-                }
-                else if (lowerLabel.includes('matière') || lowerLabel.includes('material')) {
-                    material = value;
-                    console.log('[Automation Engine Fresh] 🔍 DEBUG - Matière trouvée:', material);
-                }
-                else if (lowerLabel.includes('catégorie') || lowerLabel.includes('category')) {
-                    category = value;
-                    console.log('[Automation Engine Fresh] 🔍 DEBUG - Catégorie trouvée:', category);
-                }
+                const key = label.toLowerCase();
+                attributes[key] = valueText;
+                console.log('[Automation Engine Fresh] 🔍 DEBUG - Attribut détecté:', label, '=>', valueText);
             });
 
-            // Si pas trouvé avec les détails, essayer les sélecteurs spécifiques
-            if (!brand) {
-                const brandElement = doc.querySelector('div.details-list__item-value span[itemprop="name"], [data-testid*="brand"]');
-                brand = brandElement ? brandElement.textContent?.trim() : '';
-                console.log('[Automation Engine Fresh] 🔍 DEBUG - Marque (sélecteur spécifique):', brand);
+            brand = attributes['marque'] || '';
+            size = attributes['taille'] || '';
+            condition = attributes['état'] || attributes['etat'] || '';
+            material = attributes['matière'] || attributes['matiere'] || '';
+            color = attributes['couleur'] || '';
+
+            // Catégorie via breadcrumbs (si présent)
+            // Catégorie via breadcrumbs (id direct si possible)
+            const breadcrumbLinks = doc.querySelectorAll(
+                '[data-testid="item-breadcrumbs"] a[href*="catalog"],\
+                 nav[aria-label="breadcrumb"] a[href*="catalog"],\
+                 .breadcrumbs a[href*="catalog"],\
+                 [data-testid="breadcrumbs"] a[href*="catalog"]'
+            );
+            let catalogIdFromBreadcrumb = null;
+            if (breadcrumbLinks && breadcrumbLinks.length > 0) {
+                // Tenter sur tous les breadcrumbs et garder le dernier ID trouvé
+                Array.from(breadcrumbLinks).forEach((link) => {
+                    try {
+                        const urlObj = new URL(link.href, 'https://www.vinted.fr');
+                        // Chercher ID en query
+                        const idsParam = urlObj.searchParams.getAll('catalog_ids[]');
+                        const altParam = urlObj.searchParams.get('catalog_ids') || urlObj.searchParams.get('catalog_id') || urlObj.searchParams.get('catalog');
+                        let idCandidate = (idsParam && idsParam.length > 0) ? idsParam[idsParam.length - 1] : altParam;
+                        // Sinon, tenter dans le chemin: /catalog/1764 ou /catalogs/1764
+                        if (!idCandidate) {
+                            const path = urlObj.pathname || '';
+                            const m = path.match(/\/catalogs?\/(\d+)/);
+                            if (m && m[1]) idCandidate = m[1];
+                        }
+                        if (idCandidate && /^\d+$/.test(idCandidate)) {
+                            catalogIdFromBreadcrumb = parseInt(idCandidate, 10);
+                            category = link.textContent?.trim() || category;
+                        }
+                    } catch (_) { /* ignore URL parse errors */ }
+                });
+                if (catalogIdFromBreadcrumb) {
+                    console.log('[Automation Engine Fresh] 🔍 DEBUG - Catégorie breadcrumb:', category, 'ID:', catalogIdFromBreadcrumb);
+                } else {
+                    console.log('[Automation Engine Fresh] ⚠️ DEBUG - Aucun catalog_id détecté dans les breadcrumbs');
+                }
+            } else {
+                // Fallback: prendre le dernier lien breadcrumb dont le texte n'est pas "Accueil"
+                const allCrumbs = doc.querySelectorAll('[data-testid="item-breadcrumbs"] a, nav[aria-label="breadcrumb"] a, .breadcrumbs a, [data-testid="breadcrumbs"] a');
+                if (allCrumbs && allCrumbs.length > 0) {
+                    const candidates = Array.from(allCrumbs).map(a => a).filter(a => (a.textContent || '').trim().toLowerCase() !== 'accueil');
+                    const last = candidates[candidates.length - 1] || allCrumbs[allCrumbs.length - 1];
+                    if (last) category = last.textContent?.trim() || '';
+                }
             }
 
-            if (!size) {
-                const sizeElement = doc.querySelector('[data-testid="item-attributes-size"] span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold, [data-testid*="size"]');
-                size = sizeElement ? sizeElement.textContent?.trim() : '';
-                console.log('[Automation Engine Fresh] 🔍 DEBUG - Taille (sélecteur spécifique):', size);
+            // Extraction stricte des IDs depuis les liens des caractéristiques (aucun guessing)
+            let brandIdFromLink = null;
+            const detailsRoot = detailsContainer || doc;
+
+            // Marque (texte + ID)
+            const brandLink = detailsRoot.querySelector('a[href*="brand_id"], a[href*="brand_ids"]');
+            if (brandLink) {
+                brand = brand || brandLink.textContent?.trim() || '';
+                try {
+                    const urlObj = new URL(brandLink.href, 'https://www.vinted.fr');
+                    const ids = urlObj.searchParams.getAll('brand_ids[]');
+                    const single = urlObj.searchParams.get('brand_id');
+                    const idCandidate = (ids && ids.length > 0) ? ids[ids.length - 1] : single;
+                    if (idCandidate && /^\d+$/.test(idCandidate)) {
+                        brandIdFromLink = parseInt(idCandidate, 10);
+                    }
+                } catch (_) { /* ignore */ }
             }
 
-            if (!condition || condition === 'good') {
-                const conditionElement = doc.querySelector('[data-testid="item-attributes-status"] span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold, [data-testid*="status"]');
-                condition = conditionElement ? conditionElement.textContent?.trim() : 'good';
-                console.log('[Automation Engine Fresh] 🔍 DEBUG - État (sélecteur spécifique):', condition);
+            // Taille (texte + ID)
+            let sizeIdFromLink = null;
+            const sizeLink = detailsRoot.querySelector('a[href*="size_id"], a[href*="size_ids"]');
+            if (sizeLink) {
+                size = size || sizeLink.textContent?.trim() || '';
+                try {
+                    const urlObj = new URL(sizeLink.href, 'https://www.vinted.fr');
+                    const ids = urlObj.searchParams.getAll('size_ids[]');
+                    const single = urlObj.searchParams.get('size_id') || urlObj.searchParams.get('size_ids');
+                    const idCandidate = (ids && ids.length > 0) ? ids[ids.length - 1] : single;
+                    if (idCandidate && /^\d+$/.test(idCandidate)) {
+                        sizeIdFromLink = parseInt(idCandidate, 10);
+                    }
+                } catch (_) { /* ignore */ }
             }
 
-            if (!material) {
-                const materialElement = doc.querySelector('[data-testid="item-attributes-material"] span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold, [data-testid*="material"]');
-                material = materialElement ? materialElement.textContent?.trim() : '';
-                console.log('[Automation Engine Fresh] 🔍 DEBUG - Matière (sélecteur spécifique):', material);
+            // État (texte + ID)
+            let statusIdFromLink = null;
+            const statusLink = detailsRoot.querySelector('a[href*="status_id"]');
+            if (statusLink) {
+                condition = condition || statusLink.textContent?.trim() || '';
+                try {
+                    const urlObj = new URL(statusLink.href, 'https://www.vinted.fr');
+                    const idCandidate = urlObj.searchParams.get('status_id');
+                    if (idCandidate && /^\d+$/.test(idCandidate)) {
+                        statusIdFromLink = parseInt(idCandidate, 10);
+                    }
+                } catch (_) { /* ignore */ }
             }
 
-            if (!color) {
-                const colorElement = doc.querySelector('[data-testid="item-attributes-color"] span.web_ui__Text__text.web_ui__Text__subtitle.web_ui__Text__left.web_ui__Text__bold, [data-testid*="color"]');
-                color = colorElement ? colorElement.textContent?.trim() : '';
-                console.log('[Automation Engine Fresh] 🔍 DEBUG - Couleur (sélecteur spécifique):', color);
+            // Matière (texte + ID)
+            let materialIdFromLink = null;
+            const materialLink = detailsRoot.querySelector('a[href*="material_id"], a[href*="material_ids"]');
+            if (materialLink) {
+                material = material || materialLink.textContent?.trim() || '';
+                try {
+                    const urlObj = new URL(materialLink.href, 'https://www.vinted.fr');
+                    const ids = urlObj.searchParams.getAll('material_ids[]');
+                    const single = urlObj.searchParams.get('material_id') || urlObj.searchParams.get('material_ids');
+                    const idCandidate = (ids && ids.length > 0) ? ids[ids.length - 1] : single;
+                    if (idCandidate && /^\d+$/.test(idCandidate)) {
+                        materialIdFromLink = parseInt(idCandidate, 10);
+                    }
+                } catch (_) { /* ignore */ }
+            }
+
+            // Couleur(s) (texte + IDs)
+            let colorIdsFromLinks = [];
+            const colorLinks = detailsRoot.querySelectorAll('a[href*="color_id"], a[href*="color_ids"]');
+            if (colorLinks && colorLinks.length > 0) {
+                colorLinks.forEach(link => {
+                    try {
+                        const urlObj = new URL(link.href, 'https://www.vinted.fr');
+                        const many = urlObj.searchParams.getAll('color_ids[]');
+                        const one = urlObj.searchParams.get('color_id') || urlObj.searchParams.get('color_ids');
+                        if (many && many.length > 0) {
+                            many.forEach(v => { if (/^\d+$/.test(v)) colorIdsFromLinks.push(parseInt(v, 10)); });
+                        } else if (one && /^\d+$/.test(one)) {
+                            colorIdsFromLinks.push(parseInt(one, 10));
+                        }
+                        if (!color) {
+                            const txt = link.textContent?.trim();
+                            if (txt) color = txt; // conserver une couleur texte principale
+                        }
+                    } catch (_) { /* ignore */ }
+                });
+                // Uniques
+                colorIdsFromLinks = Array.from(new Set(colorIdsFromLinks));
             }
 
             // Location and shipping
@@ -274,10 +381,12 @@ try {
                 location: location,
                 shipping: shipping,
                 scrapedAt: new Date().toISOString(),
-                category_id: null,
-                brand_id: null,
-                size_id: null,
-                color_id: null,
+                catalog_id: catalogIdFromBreadcrumb || null,
+                brand_id: brandIdFromLink || null,
+                size_id: sizeIdFromLink || null,
+                status_id: statusIdFromLink || null,
+                material_id: materialIdFromLink || null,
+                color_ids: colorIdsFromLinks || [],
                 country_id: 73, // France par défaut
                 city_id: null,
                 shipping_paid_by: 'buyer',
@@ -837,9 +946,11 @@ try {
     function enrichItemDataWithIds(itemData, config) {
         console.log('[Automation Engine Fresh] 🔧 Enrichissement des données avec les IDs...');
 
-        // --- MARQUE ---
+        // --- MARQUE --- (ne pas écraser une brand_id issue du HTML)
         console.log('[Automation Engine Fresh] 🔍 Recherche marque:', itemData.brand);
-        if (itemData.brand && config.brands && config.brands.length > 0) {
+        if (itemData.brand_id) {
+            console.log('[Automation Engine Fresh] ✅ Marque ID déjà extrait du HTML:', itemData.brand_id);
+        } else if (!itemData.brand_id && itemData.brand && config.brands && config.brands.length > 0) {
             // Nettoyer la marque (enlever les espaces en trop)
             const cleanBrand = itemData.brand.trim();
 
@@ -891,125 +1002,194 @@ try {
                     console.log('[Automation Engine Fresh] ⚠️ Marque non reconnue:', cleanBrand);
                 }
             }
-        } else {
+        } else if (!itemData.brand_id) {
             console.log('[Automation Engine Fresh] ⚠️ Pas de marque ou pas de config');
             itemData.brand_id = null;
         }
 
-        // --- TAILLE ---
+        // --- TAILLE --- (ne pas écraser un size_id issu du HTML)
         console.log('[Automation Engine Fresh] 🔍 Recherche taille:', itemData.size);
-        if (itemData.size && config.sizes && config.sizes.length > 0) {
-            const found = config.sizes.find(s =>
-                s.title && s.title.toLowerCase().includes(itemData.size.toLowerCase()) ||
-                s.name && s.name.toLowerCase().includes(itemData.size.toLowerCase())
-            );
-            if (found) {
-                itemData.size_id = found.id;
-                console.log('[Automation Engine Fresh] ✅ Taille trouvée:', found.title || found.name, 'ID:', found.id);
-            } else {
-                console.log('[Automation Engine Fresh] ⚠️ Taille non trouvée:', itemData.size);
-                console.log('[Automation Engine Fresh] 📋 Tailles disponibles:', config.sizes.slice(0, 5).map(s => s.title || s.name));
-                itemData.size_id = null; // Pas de taille par défaut
+        if (itemData.size_id) {
+            console.log('[Automation Engine Fresh] ✅ Taille ID déjà extrait du HTML:', itemData.size_id);
+        } else if (!itemData.size_id && itemData.size) {
+            // Si l'endpoint /sizes renvoie 404, tenter via catalog_group_fields
+            if ((!config.sizes || config.sizes.length === 0) && Array.isArray(config.catalog_group_fields)) {
+                const allSizeOptions = [];
+                for (const group of config.catalog_group_fields) {
+                    if (group && Array.isArray(group.fields)) {
+                        for (const field of group.fields) {
+                            if ((field.code === 'size' || field.key === 'size') && Array.isArray(field.options)) {
+                                allSizeOptions.push(...field.options);
+                            }
+                        }
+                    }
+                }
+                if (allSizeOptions.length > 0) {
+                    const foundFromGroup = allSizeOptions.find(opt => {
+                        const name = (opt.title || opt.name || '').toLowerCase();
+                        return name.includes(itemData.size.toLowerCase());
+                    });
+                    if (foundFromGroup) {
+                        itemData.size_id = foundFromGroup.id;
+                        console.log('[Automation Engine Fresh] ✅ Taille trouvée via catalog_group_fields:', foundFromGroup.title || foundFromGroup.name, 'ID:', foundFromGroup.id);
+                    }
+                }
             }
-        } else {
+
+            // Sinon essayer la liste sizes si disponible
+            if (!itemData.size_id && config.sizes && config.sizes.length > 0) {
+                const found = config.sizes.find(s =>
+                    s.title && s.title.toLowerCase().includes(itemData.size.toLowerCase()) ||
+                    s.name && s.name.toLowerCase().includes(itemData.size.toLowerCase())
+                );
+                if (found) {
+                    itemData.size_id = found.id;
+                    console.log('[Automation Engine Fresh] ✅ Taille trouvée:', found.title || found.name, 'ID:', found.id);
+                }
+            }
+
+            // Mapping direct connu (synonymes) si toujours introuvable
+            if (!itemData.size_id) {
+                const sizeText = (itemData.size || '').trim().toLowerCase();
+                const knownSizes = {
+                    'taille unique': 1226,
+                    'one size': 1226,
+                    'unique': 1226
+                };
+                if (knownSizes[sizeText]) {
+                    itemData.size_id = knownSizes[sizeText];
+                    console.log('[Automation Engine Fresh] ✅ Taille mappée par nom connu:', itemData.size, 'ID:', itemData.size_id);
+                }
+            }
+
+            // Recherche élargie dans catalog_group_fields pour trouver la bonne taille DU CATALOGUE COURANT
+            if (!itemData.size_id && Array.isArray(config.catalog_group_fields)) {
+                for (const group of config.catalog_group_fields) {
+                    if (!group || !Array.isArray(group.fields)) continue;
+                    for (const field of group.fields) {
+                        const fieldCode = (field.code || field.key || '').toLowerCase();
+                        if ((fieldCode.includes('size') || fieldCode.includes('taille')) && Array.isArray(field.options)) {
+                            const match = field.options.find(opt => {
+                                const name = (opt.title || opt.name || '').trim().toLowerCase();
+                                const target = (itemData.size || '').trim().toLowerCase();
+                                return name === target || name.includes(target) || target.includes(name);
+                            });
+                            if (match) {
+                                itemData.size_id = match.id;
+                                itemData.size_field_code = field.code || field.key || 'size';
+                                console.log('[Automation Engine Fresh] ✅ Taille via catalog_group_fields:', match.title || match.name, 'ID:', match.id, 'field:', itemData.size_field_code);
+                                break;
+                            }
+                        }
+                    }
+                    if (itemData.size_id) break;
+                }
+                if (!itemData.size_id) {
+                    console.log('[Automation Engine Fresh] ⚠️ Aucune option de taille correspondante trouvée dans catalog_group_fields');
+                }
+            }
+        } else if (!itemData.size_id) {
             console.log('[Automation Engine Fresh] ⚠️ Pas de taille ou pas de config');
             itemData.size_id = null;
         }
 
-        // --- ÉTAT ---
-        console.log('[Automation Engine Fresh] 🔍 État extrait:', itemData.condition);
-        // Mapper l'état vers les IDs Vinted
-        if (itemData.condition) {
+        // --- ÉTAT --- (ne pas écraser un status_id issu du HTML; aucun guessing)
+        console.log('[Automation Engine Fresh] 🔍 État extrait (texte):', itemData.condition);
+        if (itemData.status_id) {
+            console.log('[Automation Engine Fresh] ✅ Status ID déjà extrait du HTML:', itemData.status_id);
+        } else if (!itemData.status_id && itemData.condition) {
+            // Mapping déterministe texte → ID (labels officiels Vinted FR)
             const conditionLower = itemData.condition.toLowerCase();
-            if (conditionLower.includes('neuf') || conditionLower.includes('étiquette')) {
+            if (/(neuf|étiquette)/i.test(conditionLower)) {
                 itemData.status_id = 6; // Neuf avec étiquette
                 console.log('[Automation Engine Fresh] ✅ État mappé: Neuf avec étiquette (ID: 6)');
-            } else if (conditionLower.includes('très bon')) {
+            } else if (/très\s*bon/i.test(conditionLower)) {
                 itemData.status_id = 5; // Très bon état
                 console.log('[Automation Engine Fresh] ✅ État mappé: Très bon état (ID: 5)');
-            } else if (conditionLower.includes('bon')) {
+            } else if (/bon/i.test(conditionLower)) {
                 itemData.status_id = 4; // Bon état
                 console.log('[Automation Engine Fresh] ✅ État mappé: Bon état (ID: 4)');
-            } else {
-                itemData.status_id = 6; // Par défaut: Neuf avec étiquette
-                console.log('[Automation Engine Fresh] ✅ État par défaut: Neuf avec étiquette (ID: 6)');
             }
-        } else {
-            itemData.status_id = 6; // Par défaut
-            console.log('[Automation Engine Fresh] ✅ État par défaut: Neuf avec étiquette (ID: 6)');
         }
 
-        // --- COULEUR ---
-        if (itemData.color && config.colors && config.colors.length > 0) {
-            // Peut être plusieurs couleurs séparées par virgule
+        // --- COULEUR --- (ne pas forcer des valeurs par défaut si non connues)
+        if (itemData.color_ids && itemData.color_ids.length > 0) {
+            console.log('[Automation Engine Fresh] ✅ Color IDs déjà extraits du HTML:', itemData.color_ids);
+        } else if (itemData.color && config.colors && config.colors.length > 0) {
             const colorNames = itemData.color.split(',').map(c => c.trim().toLowerCase());
             const foundColors = config.colors.filter(col =>
-                col.title && colorNames.some(name => col.title.toLowerCase().includes(name)) ||
-                col.name && colorNames.some(name => col.name.toLowerCase().includes(name))
+                (col.title && colorNames.some(name => col.title.toLowerCase() === name)) ||
+                (col.name && colorNames.some(name => col.name.toLowerCase() === name))
             );
             if (foundColors.length > 0) {
                 itemData.color_ids = foundColors.map(col => col.id);
                 console.log('[Automation Engine Fresh] ✅ Couleurs trouvées:', foundColors.map(c => c.title || c.name), 'IDs:', itemData.color_ids);
-            } else {
-                console.log('[Automation Engine Fresh] ⚠️ Couleurs non trouvées:', itemData.color);
-                itemData.color_ids = [1]; // Noir par défaut
             }
-        } else {
-            itemData.color_ids = [1]; // Noir par défaut
         }
 
-        // --- MATIÈRE ---
-        console.log('[Automation Engine Fresh] 🔍 Matière extraite:', itemData.material);
-        if (itemData.material) {
-            const materialLower = itemData.material.toLowerCase();
-            // Mapper les matières vers les IDs Vinted (approximatif)
-            if (materialLower.includes('coton')) {
-                itemData.material_id = 468; // Coton
-                console.log('[Automation Engine Fresh] ✅ Matière mappée: Coton (ID: 468)');
-            } else if (materialLower.includes('polyester')) {
-                itemData.material_id = 469; // Polyester
-                console.log('[Automation Engine Fresh] ✅ Matière mappée: Polyester (ID: 469)');
-            } else if (materialLower.includes('laine')) {
-                itemData.material_id = 470; // Laine
-                console.log('[Automation Engine Fresh] ✅ Matière mappée: Laine (ID: 470)');
-            } else {
-                itemData.material_id = 468; // Par défaut: Coton
-                console.log('[Automation Engine Fresh] ✅ Matière par défaut: Coton (ID: 468)');
-            }
-        } else {
-            itemData.material_id = 468; // Par défaut
-            console.log('[Automation Engine Fresh] ✅ Matière par défaut: Coton (ID: 468)');
-        }
-
-        // --- CATÉGORIE ---
-        // Pour les peluches, on va chercher dans les catégories enfants
-        console.log('[Automation Engine Fresh] 🔍 Recherche catégorie pour peluche...');
-        if (config.catalogs && config.catalogs.length > 0) {
-            // Chercher d'abord "Peluches" ou "Jeux et jouets" ou "Enfants"
-            const found = config.catalogs.find(cat =>
-                cat.title && (cat.title.toLowerCase().includes('peluche') ||
-                    cat.title.toLowerCase().includes('jouet') ||
-                    cat.title.toLowerCase().includes('jeu') ||
-                    cat.title.toLowerCase().includes('enfant'))
-            );
-            if (found) {
-                itemData.catalog_id = found.id;
-                console.log('[Automation Engine Fresh] ✅ Catégorie trouvée:', found.title, 'ID:', found.id);
-            } else {
-                console.log('[Automation Engine Fresh] ⚠️ Catégorie peluche non trouvée, utilisation Enfants par défaut');
-                // Utiliser "Enfants" comme fallback pour les peluches
-                const enfantsCategory = config.catalogs.find(cat => cat.title && cat.title.toLowerCase().includes('enfant'));
-                if (enfantsCategory) {
-                    itemData.catalog_id = enfantsCategory.id;
-                    console.log('[Automation Engine Fresh] ✅ Catégorie fallback trouvée:', enfantsCategory.title, 'ID:', enfantsCategory.id);
-                } else {
-                    console.log('[Automation Engine Fresh] 📋 Catégories disponibles:', config.catalogs.slice(0, 10).map(c => c.title));
-                    itemData.catalog_id = null;
+        // --- MATIÈRE --- (ne pas deviner; respecter material_id extrait)
+        console.log('[Automation Engine Fresh] 🔍 Matière extraite (texte):', itemData.material);
+        if (itemData.material_id) {
+            console.log('[Automation Engine Fresh] ✅ Material ID déjà extrait du HTML:', itemData.material_id);
+        } else if (itemData.material) {
+            // 1) Essayer via catalog_group_fields
+            if (Array.isArray(config.catalog_group_fields)) {
+                for (const group of config.catalog_group_fields) {
+                    if (group && Array.isArray(group.fields)) {
+                        for (const field of group.fields) {
+                            const fieldCode = (field.code || field.key || '').toLowerCase();
+                            if (Array.isArray(field.options)) {
+                                const foundOpt = field.options.find(opt => {
+                                    const name = (opt.title || opt.name || '').toLowerCase();
+                                    const target = itemData.material.toLowerCase();
+                                    return name === target || name.includes(target) || target.includes(name);
+                                });
+                                if (foundOpt) {
+                                    itemData.material_id = foundOpt.id;
+                                    itemData.material_field_code = field.code || field.key || 'material';
+                                    console.log('[Automation Engine Fresh] ✅ Matière via catalog_group_fields:', foundOpt.title || foundOpt.name, 'ID:', foundOpt.id, 'field:', itemData.material_field_code);
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if (itemData.material_id) break;
+                }
+                if (!itemData.material_id) {
+                    console.log('[Automation Engine Fresh] ⚠️ Aucune option de matière correspondante trouvée dans catalog_group_fields');
                 }
             }
-        } else {
-            console.log('[Automation Engine Fresh] ⚠️ Pas de config de catégories');
-            itemData.catalog_id = null;
+            // 2) Sinon, essayer la liste materials si disponible
+            if (!itemData.material_id && config.materials && config.materials.length > 0) {
+                const found = config.materials.find(mat =>
+                    (mat.title && mat.title.toLowerCase() === itemData.material.toLowerCase()) ||
+                    (mat.name && mat.name.toLowerCase() === itemData.material.toLowerCase())
+                );
+                if (found) {
+                    itemData.material_id = found.id;
+                    itemData.material_field_code = 'material';
+                    console.log('[Automation Engine Fresh] ✅ Matériau trouvé:', found.title || found.name, 'ID:', found.id, 'field:', itemData.material_field_code);
+                }
+            }
+            // 3) Mapping déterministe minimal si toujours introuvable
+            if (!itemData.material_id) {
+                const materialLower = itemData.material.toLowerCase();
+                const knownMaterials = {
+                    'coton': 468,
+                    'polyester': 469,
+                    'laine': 470
+                };
+                if (knownMaterials[materialLower]) {
+                    itemData.material_id = knownMaterials[materialLower];
+                    itemData.material_field_code = 'material';
+                    console.log('[Automation Engine Fresh] ✅ Matière mappée par nom connu:', itemData.material, 'ID:', itemData.material_id, 'field:', itemData.material_field_code);
+                }
+            }
+        }
+
+        // --- CATÉGORIE --- (respecter un ID déjà présent; aucun fallback heuristique)
+        if (itemData.catalog_id) {
+            console.log('[Automation Engine Fresh] ✅ Catégorie ID déjà extrait du HTML:', itemData.catalog_id);
         }
 
         // --- MATIÈRE ---
@@ -1945,6 +2125,17 @@ try {
             const tempUuid = generateUUID();
 
             // Préparer le payload exactement comme la vraie requête qui fonctionne
+            // Respecter les IDs déjà enrichis
+            // Construire dynamiquement les attributs d'item selon les codes du catalogue
+            const itemAttributes = [];
+            if (itemData.material_id) {
+                itemAttributes.push({ code: itemData.material_field_code || 'material', ids: [itemData.material_id] });
+            }
+            if (itemData.size_id && itemData.size_field_code && itemData.size_field_code !== 'size') {
+                // Certaines catégories attendent la taille en attribut plutôt qu'en size_id
+                itemAttributes.push({ code: itemData.size_field_code, ids: [itemData.size_id] });
+            }
+
             const payload = {
                 draft: {
                     id: null,
@@ -1953,13 +2144,13 @@ try {
                     title: settings.safeMode ? modifyTitleForSafety(itemData.title) : itemData.title,
                     description: itemData.description || '',
                     price: settings.safeMode ? modifyPriceForSafety(extractPrice(itemData.price)) : extractPrice(itemData.price),
-                    brand_id: itemData.brand_id || null,
-                    catalog_id: itemData.catalog_id || null,
-                    size_id: itemData.size_id || null,
-                    color_ids: itemData.color_ids || [],
-                    item_attributes: itemData.material_id ? [{ "code": "material", "ids": [itemData.material_id] }] : [],
-                    package_size_id: null,
-                    status_id: null,
+                    brand_id: itemData.brand_id ?? null,
+                    catalog_id: itemData.catalog_id ?? null,
+                    size_id: itemData.size_id ?? null,
+                    color_ids: Array.isArray(itemData.color_ids) ? itemData.color_ids : [],
+                    item_attributes: itemAttributes,
+                    package_size_id: itemData.package_size_id ?? null,
+                    status_id: itemData.status_id ?? null,
                     is_unisex: false,
                     assigned_photos: [],
                     shipment_prices: {
