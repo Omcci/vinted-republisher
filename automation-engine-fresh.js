@@ -1051,12 +1051,18 @@ try {
             // Mapping direct connu (synonymes) si toujours introuvable
             if (!itemData.size_id) {
                 const sizeText = (itemData.size || '').trim().toLowerCase();
+                // Spécifique Peluches (catalog_id 1764) : "Taille unique" correspond à l'option 620
+                if (itemData.catalog_id === 1764 && (sizeText.includes('taille unique') || sizeText === 'unique' || sizeText === 'one size')) {
+                    itemData.size_id = 620;
+                    itemData.size_field_code = itemData.size_field_code || 'size';
+                    console.log('[Automation Engine Fresh] ✅ Taille Peluches mappée: Taille unique → ID: 620');
+                }
                 const knownSizes = {
                     'taille unique': 1226,
                     'one size': 1226,
                     'unique': 1226
                 };
-                if (knownSizes[sizeText]) {
+                if (knownSizes[sizeText] && !itemData.size_id) {
                     itemData.size_id = knownSizes[sizeText];
                     console.log('[Automation Engine Fresh] ✅ Taille mappée par nom connu:', itemData.size, 'ID:', itemData.size_id);
                 }
@@ -2131,9 +2137,9 @@ try {
             if (itemData.material_id) {
                 itemAttributes.push({ code: itemData.material_field_code || 'material', ids: [itemData.material_id] });
             }
-            if (itemData.size_id && itemData.size_field_code && itemData.size_field_code !== 'size') {
-                // Certaines catégories attendent la taille en attribut plutôt qu'en size_id
-                itemAttributes.push({ code: itemData.size_field_code, ids: [itemData.size_id] });
+            if (itemData.size_id) {
+                // Ajouter la taille aussi en attribut. Utiliser le code spécifique si connu, sinon 'size'
+                itemAttributes.push({ code: itemData.size_field_code || 'size', ids: [itemData.size_id] });
             }
 
             const payload = {
