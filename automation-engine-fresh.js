@@ -167,9 +167,28 @@ try {
                 }
             }
 
-            const images = Array.from(doc.querySelectorAll('img[data-testid*="item-photo"][src*="vinted.net"], img[src*="images"]'))
-                .map(img => img.src)
-                .filter(src => src && !src.includes('avatar') && !src.includes('icon'));
+            const imageCandidates = Array.from(
+                doc.querySelectorAll(
+                    [
+                        'img[data-testid*="item-photo"]',
+                        '[data-testid*="photo"] img',
+                        '.item-photos img',
+                        'img[src*="vinted.net/images"]',
+                        'img[src*="image"]'
+                    ].join(', ')
+                )
+            )
+                .map((img) => img.getAttribute('src') || img.src || '')
+                .filter(Boolean);
+
+            // Dédupliquer et normaliser pour garder des URLs d'images exploitables
+            const images = Array.from(
+                new Set(
+                    imageCandidates
+                        .map((src) => src.replace(/\/\d+x\d+\//, '/original/').replace('/thumb/', '/original/'))
+                        .filter((src) => src && !src.includes('avatar') && !src.includes('icon'))
+                )
+            );
             console.log('[Automation Engine Fresh] 🔍 DEBUG - Images trouvées:', images.length);
 
             // === EXTRACTION ROBUSTE DES CARACTÉRISTIQUES (SANS GUESS) ===
@@ -817,6 +836,13 @@ try {
             const tempUuid = generateUUID();
 
             // Préparer le payload selon l'API Vinted
+            const assignedPhotos = (itemData.images || []).map((url, index) => ({
+                // Certains endpoints attendent "url", d'autres "image_url"
+                url,
+                image_url: url,
+                position: index + 1
+            }));
+
             const payload = {
                 draft: {
                     id: null,
@@ -1632,7 +1658,8 @@ try {
                     package_size_id: 3, // Utiliser la même valeur que la vraie requête
                     status_id: 6,
                     is_unisex: false,
-                    assigned_photos: [],
+                    assigned_photos: assignedPhotos,
+                    photo_urls: (itemData.images || []).slice(),
                     shipment_prices: {
                         domestic: null,
                         international: null
@@ -1642,6 +1669,7 @@ try {
             };
 
             console.log('[Automation Engine Fresh] 📤 Payload envoyé:', payload);
+            console.log('[Automation Engine Fresh] 📸 Photos injectées dans payload:', assignedPhotos.length);
 
             // Headers exactement comme la vraie requête
             const headers = {
