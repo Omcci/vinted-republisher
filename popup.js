@@ -20,6 +20,7 @@ const itemsList = document.getElementById('itemsList');
 const itemsContainer = document.getElementById('itemsContainer');
 const itemsCount = document.getElementById('itemsCount');
 const logs = document.getElementById('logs');
+const logsContainer = document.getElementById('logsContainer');
 
 // === INITIALISATION ===
 document.addEventListener('DOMContentLoaded', async () => {
@@ -79,13 +80,13 @@ async function checkCurrentPage() {
 
 // === GESTION DES ÉVÉNEMENTS ===
 function setupEventListeners() {
-    scanButton.addEventListener('click', handleScanItems);
-    republishButton.addEventListener('click', handleRepublishSelected);
+    if (scanButton) scanButton.addEventListener('click', handleScanItems);
+    if (republishButton) republishButton.addEventListener('click', handleRepublishSelected);
 
-    // Event listeners pour le mode manuel
-    document.getElementById('extractData').addEventListener('click', handleExtractData);
-    document.getElementById('createDraft').addEventListener('click', handleCreateDraft);
-    document.getElementById('viewDrafts').addEventListener('click', handleViewDrafts);
+    // Event listeners pour le mode manuel (optionnels selon la version du popup.html)
+    bindClickIfExists('extractData', handleExtractData);
+    bindClickIfExists('createDraft', handleCreateDraft);
+    bindClickIfExists('viewDrafts', handleViewDrafts);
 }
 
 // === SCAN DES ARTICLES ===
@@ -485,10 +486,22 @@ function addLog(type, message) {
         <span class="log-message">${message}</span>
     `;
 
-    logs.appendChild(logDiv);
-    logs.scrollTop = logs.scrollHeight;
+    const target = logsContainer || logs;
+    if (!target) return;
+
+    target.appendChild(logDiv);
+    target.scrollTop = target.scrollHeight;
 
     console.log(`[Popup PRO] 📝 Log ${type}:`, message);
+}
+
+function bindClickIfExists(id, handler) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.addEventListener('click', handler);
+    } else {
+        console.log(`[Popup PRO] ℹ️ Élément optionnel absent: #${id}`);
+    }
 }
 
 // === UTILITAIRES ===
@@ -523,8 +536,10 @@ async function checkManualProcess() {
                 addLog('success', '✅ Étape 1 terminée - Données extraites');
                 addLog('info', '📝 Prêt pour l\'étape 2: Créer le brouillon');
 
-                document.getElementById('extractData').disabled = true;
-                document.getElementById('createDraft').disabled = false;
+                const extractBtn = document.getElementById('extractData');
+                const createBtn = document.getElementById('createDraft');
+                if (extractBtn) extractBtn.disabled = true;
+                if (createBtn) createBtn.disabled = false;
 
                 updateStatus('manual', 'Étape 2: Cliquez "Créer le brouillon"');
 
@@ -532,9 +547,12 @@ async function checkManualProcess() {
                 addLog('success', '✅ Étape 1 et 2 terminées');
                 addLog('info', '👀 Prêt pour l\'étape 3: Voir les brouillons');
 
-                document.getElementById('extractData').disabled = true;
-                document.getElementById('createDraft').disabled = true;
-                document.getElementById('viewDrafts').disabled = false;
+                const extractBtn = document.getElementById('extractData');
+                const createBtn = document.getElementById('createDraft');
+                const draftsBtn = document.getElementById('viewDrafts');
+                if (extractBtn) extractBtn.disabled = true;
+                if (createBtn) createBtn.disabled = true;
+                if (draftsBtn) draftsBtn.disabled = false;
 
                 updateStatus('manual', 'Étape 3: Cliquez "Voir les brouillons"');
             }
