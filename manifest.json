@@ -10,7 +10,11 @@
     "webNavigation",
     "notifications"
   ],
-  "host_permissions": ["https://*.vinted.fr/*", "https://*.vinted.com/*"],
+  "host_permissions": [
+    "https://*.vinted.fr/*",
+    "https://*.vinted.com/*",
+    "https://*.vinted.net/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },

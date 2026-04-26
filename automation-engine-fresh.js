@@ -119,6 +119,217 @@ try {
     // Marquer que le moteur est prêt
     window.VINTED_AUTOMATION_READY = true;
     console.log('[Automation Engine Fresh] ✅ MOTEUR PRÊT - window.VINTED_AUTOMATION_READY = true');
+    const PHOTO_UPLOAD_TEMPLATE_KEY = 'vinted_photo_upload_template_v1';
+
+    function emitProgress(step, message, level = 'info', extra = {}) {
+        window.postMessage({
+            action: 'VINTED_AUTOMATION_PROGRESS',
+            step,
+            message,
+            level,
+            ...extra
+        }, '*');
+    }
+
+    function hasBinaryFileInBody(body) {
+        try {
+            if (typeof FormData === 'undefined' || !(body instanceof FormData)) return false;
+            for (const [, value] of body.entries()) {
+                if (value instanceof Blob || value instanceof File) return true;
+            }
+        } catch (_) {
+            // ignore
+        }
+        return false;
+    }
+
+    function isLikelyPhotoUploadRequest(url, method, body = null) {
+        const lowerUrl = String(url || '').toLowerCase();
+        const lowerMethod = String(method || 'GET').toUpperCase();
+        if (!['POST', 'PUT', 'PATCH'].includes(lowerMethod)) return false;
+        const hasBinaryBody = hasBinaryFileInBody(body);
+        const hasPhotoKeyword =
+            lowerUrl.includes('photo') ||
+            lowerUrl.includes('image') ||
+            lowerUrl.includes('media');
+        const hasUploadOnlyKeyword =
+            lowerUrl.includes('upload') ||
+            lowerUrl.includes('file') ||
+            lowerUrl.includes('asset');
+        return (
+            (lowerUrl.includes('/api/v2/') || lowerUrl.includes('vinted') || lowerUrl.includes('amazonaws') || lowerUrl.includes('cloudfront')) &&
+            (hasBinaryBody || hasPhotoKeyword || (hasUploadOnlyKeyword && hasBinaryBody))
+        );
+    }
+
+    function pickHeadersForReplay(headersLike) {
+        const allow = new Set([
+            'x-anon-id',
+            'x-csrf-token',
+            'x-enable-multiple-size-groups',
+            'x-requested-with',
+            'accept',
+            'accept-language',
+            'origin',
+            'referer'
+        ]);
+        const out = {};
+        if (!headersLike) return out;
+
+        const pairs = [];
+        if (headersLike instanceof Headers) {
+            headersLike.forEach((v, k) => pairs.push([k, v]));
+        } else if (Array.isArray(headersLike)) {
+            for (const entry of headersLike) {
+                if (Array.isArray(entry) && entry.length >= 2) pairs.push([entry[0], entry[1]]);
+            }
+        } else if (typeof headersLike === 'object') {
+            for (const k of Object.keys(headersLike)) pairs.push([k, headersLike[k]]);
+        }
+
+        for (const [key, value] of pairs) {
+            const lk = String(key || '').toLowerCase();
+            if (!allow.has(lk)) continue;
+            if (value == null || value === '') continue;
+            out[key] = value;
+        }
+        return out;
+    }
+
+    function getCapturedPhotoUploadTemplate() {
+        try {
+            const raw = localStorage.getItem(PHOTO_UPLOAD_TEMPLATE_KEY);
+            if (!raw) return null;
+            return JSON.parse(raw);
+        } catch (_) {
+            return null;
+        }
+    }
+
+    function saveCapturedPhotoUploadTemplate(template) {
+        try {
+            localStorage.setItem(PHOTO_UPLOAD_TEMPLATE_KEY, JSON.stringify(template));
+        } catch (_) {
+            // ignore
+        }
+    }
+
+    function capturePhotoUploadTemplate(url, options, status) {
+        try {
+            const method = (options?.method || 'GET').toUpperCase();
+            const body = options?.body;
+            if (!isLikelyPhotoUploadRequest(url, method, body)) return;
+
+            const shortUrl = String(url).split('?')[0];
+            emitProgress(
+                'PHOTO_UPLOAD',
+                `Sniffer candidat: ${method} ${shortUrl} -> ${status}`,
+                status >= 200 && status < 300 ? 'info' : 'warning'
+            );
+
+            if (!(status >= 200 && status < 300)) return;
+            if (!hasBinaryFileInBody(body)) return;
+
+            const fields = [];
+            const formTextFields = {};
+            if (typeof FormData !== 'undefined' && body instanceof FormData) {
+                for (const [name, value] of body.entries()) {
+                    fields.push(String(name));
+                    if (!(value instanceof Blob) && !(value instanceof File)) {
+                        formTextFields[String(name)] = String(value);
+                    }
+                }
+            }
+
+            let query = {};
+            try {
+                const u = new URL(String(url), window.location.origin);
+                query = Object.fromEntries(u.searchParams.entries());
+            } catch (_) {
+                query = {};
+            }
+
+            const template = {
+                capturedAt: new Date().toISOString(),
+                url: String(url),
+                method,
+                headers: pickHeadersForReplay(options?.headers),
+                fields: Array.from(new Set(fields)),
+                formTextFields,
+                query
+            };
+            saveCapturedPhotoUploadTemplate(template);
+            console.log('[Automation Engine Fresh] ✅ Upload template capturé:', template);
+            emitProgress('PHOTO_UPLOAD', 'Template upload photo capturé depuis Vinted', 'success');
+        } catch (_) {
+            // ignore
+        }
+    }
+
+    function installPhotoUploadSniffer() {
+        if (window.__VINTED_UPLOAD_SNIFFER_INSTALLED__) return;
+        window.__VINTED_UPLOAD_SNIFFER_INSTALLED__ = true;
+        emitProgress('PHOTO_UPLOAD', 'Sniffer upload photo activé (fetch + XHR)', 'info');
+
+        const originalFetch = window.fetch;
+        window.fetch = async function (...args) {
+            const url = args[0];
+            const options = args[1] || {};
+            const response = await originalFetch.apply(this, args);
+            try {
+                capturePhotoUploadTemplate(url, options, response.status);
+            } catch (_) {
+                // ignore
+            }
+            return response;
+        };
+
+        // Vinted peut uploader via XHR au lieu de fetch
+        const originalOpen = XMLHttpRequest.prototype.open;
+        const originalSend = XMLHttpRequest.prototype.send;
+        XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+            this.__vintedSniffMethod = method;
+            this.__vintedSniffUrl = url;
+            return originalOpen.call(this, method, url, ...rest);
+        };
+        XMLHttpRequest.prototype.send = function (body) {
+            try {
+                const xhr = this;
+                const method = xhr.__vintedSniffMethod || 'GET';
+                const url = xhr.__vintedSniffUrl || '';
+                xhr.addEventListener('loadend', function () {
+                    try {
+                        const headerLines = String(xhr.getAllResponseHeaders?.() || '')
+                            .split('\n')
+                            .map((line) => line.trim())
+                            .filter(Boolean);
+                        const headersObj = {};
+                        for (const line of headerLines) {
+                            const idx = line.indexOf(':');
+                            if (idx <= 0) continue;
+                            const k = line.slice(0, idx).trim();
+                            const v = line.slice(idx + 1).trim();
+                            headersObj[k] = v;
+                        }
+                        capturePhotoUploadTemplate(
+                            String(url),
+                            { method, headers: headersObj, body },
+                            Number(xhr.status || 0)
+                        );
+                    } catch (_) {
+                        // ignore
+                    }
+                });
+            } catch (_) {
+                // ignore
+            }
+            return originalSend.call(this, body);
+        };
+
+        console.log('[Automation Engine Fresh] 🔎 Sniffer upload photo activé');
+    }
+
+    installPhotoUploadSniffer();
 
     // Fonction pour extraire les données d'une annonce via fetch
     async function scrapeItemData(itemId) {
@@ -440,12 +651,14 @@ try {
     async function processItemsList(items, settings) {
         console.log('[Automation Engine Fresh] 🎯 DÉMARRAGE TRAITEMENT MULTIPLE');
         console.log('[Automation Engine Fresh] 📊 Nombre d\'items à traiter:', items.length);
+        emitProgress('START', `Demarrage de ${items.length} article(s)`, 'info');
 
         const results = [];
 
         for (let i = 0; i < items.length; i++) {
             const itemId = items[i];
             console.log(`[Automation Engine Fresh] 📋 Traitement item ${i + 1}/${items.length}:`, itemId);
+            emitProgress('SCRAPE', `Scraping de l'article ${itemId} (${i + 1}/${items.length})`, 'info', { itemId });
 
             // Vérifier les limites de sécurité avant chaque item
             if (!requestTracker.canMakeRequest()) {
@@ -457,18 +670,48 @@ try {
             const itemData = await scrapeItemData(itemId);
 
             if (itemData) {
-                results.push(itemData);
                 console.log(`[Automation Engine Fresh] ✅ Item ${i + 1} traité avec succès`);
 
                 // Démarrer le processus de republication automatique
                 console.log(`[Automation Engine Fresh] 🔄 Démarrage republication pour:`, itemData.title);
+                emitProgress('DRAFT', `Creation du brouillon pour "${itemData.title}"`, 'info', { itemId, title: itemData.title });
 
                 try {
-                    await startRepublishProcess(itemData, settings);
+                    const republishResult = await startRepublishProcess(itemData, settings);
                     console.log(`[Automation Engine Fresh] ✅ Republication terminée pour:`, itemData.title);
                     requestTracker.resetErrorCount(); // Réinitialiser le compteur d'erreurs en cas de succès
+                    results.push({
+                        itemId: itemData.id,
+                        title: itemData.title,
+                        success: true,
+                        status: republishResult?.status || 'SUCCESS',
+                        draftId: republishResult?.draftId || null,
+                        imageCount: Array.isArray(itemData.images) ? itemData.images.length : 0,
+                        photosAttached: republishResult?.photosAttached ?? null,
+                        photoUploadFailed: !!republishResult?.photoUploadFailed
+                    });
+                    emitProgress(
+                        'SUCCESS',
+                        `Brouillon cree pour "${itemData.title}" (photos source detectees: ${Array.isArray(itemData.images) ? itemData.images.length : 0})`,
+                        'success',
+                        { itemId, title: itemData.title }
+                    );
                 } catch (error) {
                     console.error(`[Automation Engine Fresh] ❌ Erreur republication pour:`, itemData.title, error);
+                    results.push({
+                        itemId: itemData.id,
+                        title: itemData.title,
+                        success: false,
+                        status: 'ERROR',
+                        error: error.message || 'Erreur inconnue',
+                        imageCount: Array.isArray(itemData.images) ? itemData.images.length : 0
+                    });
+                    emitProgress(
+                        'ERROR',
+                        `Erreur sur "${itemData.title}": ${error.message || 'Erreur inconnue'}`,
+                        'error',
+                        { itemId, title: itemData.title }
+                    );
 
                     // Gérer l'erreur avec le tracker de sécurité
                     if (!requestTracker.handleError()) {
@@ -485,6 +728,14 @@ try {
                 }
             } else {
                 console.log(`[Automation Engine Fresh] ❌ Échec traitement item ${i + 1}:`, itemId);
+                results.push({
+                    itemId,
+                    title: `Article #${itemId}`,
+                    success: false,
+                    status: 'SCRAPE_FAILED',
+                    error: 'Extraction impossible'
+                });
+                emitProgress('ERROR', `Echec extraction article ${itemId}`, 'error', { itemId });
             }
         }
 
@@ -497,6 +748,7 @@ try {
             results: results,
             settings: settings
         }, '*');
+        emitProgress('DONE', 'Traitement termine', 'success');
 
         return results;
     }
@@ -662,6 +914,7 @@ try {
         try {
             // ÉTAPE 1: Obtenir la configuration Vinted
             console.log('[Automation Engine Fresh] ⚙️ ÉTAPE 1: Récupération configuration Vinted...');
+            emitProgress('CONFIG', `Recuperation configuration pour "${itemData.title}"`, 'info', { itemId: itemData.id, title: itemData.title });
             const config = await getVintedConfiguration();
             if (!config) {
                 throw new Error('Impossible de récupérer la configuration Vinted');
@@ -670,9 +923,16 @@ try {
             // ÉTAPE 2: Enrichir les données avec les IDs
             console.log('[Automation Engine Fresh] 🔧 ÉTAPE 2: Enrichissement des données...');
             enrichItemDataWithIds(itemData, config);
+            emitProgress('MAPPING', `Attributs resolves pour "${itemData.title}"`, 'info', { itemId: itemData.id, title: itemData.title });
 
             // ÉTAPE 3: Créer le brouillon avec les headers de la vraie requête qui fonctionne
             console.log('[Automation Engine Fresh] 🎯 ÉTAPE 3: Création du brouillon avec les headers de la vraie requête qui fonctionne...');
+            emitProgress(
+                'DRAFT_API',
+                `Envoi brouillon API (${Array.isArray(itemData.images) ? itemData.images.length : 0} photo(s) source)`,
+                'info',
+                { itemId: itemData.id, title: itemData.title }
+            );
             const draftResult = await createDraftWithWorkingHeaders(itemData, config, settings);
             if (!draftResult.success) {
                 throw new Error('Échec de la création du brouillon');
@@ -2150,6 +2410,535 @@ try {
         }
     }
 
+    function extractAnyPhotoId(payload) {
+        if (!payload) return null;
+        if (typeof payload === 'number' || (typeof payload === 'string' && /^\d+$/.test(payload))) {
+            return Number(payload);
+        }
+        if (Array.isArray(payload)) {
+            for (const value of payload) {
+                const found = extractAnyPhotoId(value);
+                if (found) return found;
+            }
+            return null;
+        }
+        if (typeof payload === 'object') {
+            const directKeys = ['id', 'photo_id', 'image_id', 'uploaded_photo_id'];
+            for (const key of directKeys) {
+                const value = payload[key];
+                if (typeof value === 'number') return value;
+                if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value);
+            }
+            for (const key of Object.keys(payload)) {
+                const found = extractAnyPhotoId(payload[key]);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    function buildUploadHeaders(baseHeaders) {
+        const csrfFromMeta = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+        const headers = {
+            'Accept': 'application/json, text/plain, */*',
+            'Origin': 'https://www.vinted.fr',
+            'Referer': 'https://www.vinted.fr/items/new',
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-Enable-Multiple-Size-Groups': 'true'
+        };
+        if (baseHeaders && baseHeaders['X-Anon-Id']) headers['X-Anon-Id'] = baseHeaders['X-Anon-Id'];
+        if (csrfFromMeta) headers['X-Csrf-Token'] = csrfFromMeta;
+        else if (baseHeaders && baseHeaders['X-Csrf-Token']) headers['X-Csrf-Token'] = baseHeaders['X-Csrf-Token'];
+        return headers;
+    }
+
+    function normalizeImageUrl(url) {
+        if (!url || typeof url !== 'string') return '';
+        const trimmed = url.trim();
+        if (trimmed.startsWith('//')) return `https:${trimmed}`;
+        if (trimmed.startsWith('http://')) return trimmed.replace('http://', 'https://');
+        return trimmed;
+    }
+
+    function buildImageVariants(rawUrl) {
+        const url = normalizeImageUrl(rawUrl);
+        if (!url) return [];
+        const variants = new Set([url]);
+        variants.add(url.replace('/original/', '/'));
+        variants.add(url.replace('/thumb/', '/'));
+        variants.add(url.replace('/medium/', '/'));
+        variants.add(url.replace(/\/\d+x\d+\//, '/'));
+        return Array.from(variants).filter(Boolean);
+    }
+
+    function dataUrlToBlob(dataUrl) {
+        if (!dataUrl || typeof dataUrl !== 'string' || !dataUrl.startsWith('data:')) return null;
+        const parts = dataUrl.split(',');
+        if (parts.length < 2) return null;
+        const meta = parts[0];
+        const base64 = parts[1];
+        const mimeMatch = meta.match(/data:(.*?);base64/);
+        const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+        const binary = atob(base64);
+        const len = binary.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
+        return new Blob([bytes], { type: mime });
+    }
+
+    async function requestImageDataUrlViaExtension(url) {
+        const requestId = `img_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        return await new Promise((resolve) => {
+            const timeout = setTimeout(() => {
+                window.removeEventListener('message', onResponse);
+                resolve(null);
+            }, 12000);
+
+            function onResponse(event) {
+                if (event.source !== window) return;
+                const data = event.data;
+                if (!data || data.action !== 'VINTED_DOWNLOAD_IMAGE_RESPONSE') return;
+                if (data.requestId !== requestId) return;
+                clearTimeout(timeout);
+                window.removeEventListener('message', onResponse);
+                if (data.success && data.dataUrl) resolve(data.dataUrl);
+                else resolve(null);
+            }
+
+            window.addEventListener('message', onResponse);
+            window.postMessage(
+                {
+                    action: 'VINTED_DOWNLOAD_IMAGE_REQUEST',
+                    requestId,
+                    url
+                },
+                '*'
+            );
+        });
+    }
+
+    async function ensureUploadCompatibleBlob(inputBlob) {
+        if (!inputBlob) return null;
+        return await new Promise((resolve) => {
+            try {
+                const img = new Image();
+                const objectUrl = URL.createObjectURL(inputBlob);
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || img.width;
+                        canvas.height = img.naturalHeight || img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+
+                        // Micro-perturbations pour éviter hash identique (invisible visuellement)
+                        const x = Math.max(0, canvas.width - 6);
+                        const y = Math.max(0, canvas.height - 6);
+                        ctx.fillStyle = `rgba(255,255,255,${0.004 + Math.random() * 0.004})`;
+                        ctx.fillRect(x, y, 4, 4);
+
+                        try {
+                            const sampleCount = Math.min(30, Math.max(5, Math.floor((canvas.width * canvas.height) / 500000)));
+                            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const data = imageData.data;
+                            for (let i = 0; i < sampleCount; i++) {
+                                const idx = Math.floor(Math.random() * (data.length / 4)) * 4;
+                                data[idx] = Math.min(255, Math.max(0, data[idx] + (Math.random() > 0.5 ? 1 : -1)));
+                            }
+                            ctx.putImageData(imageData, 0, 0);
+                        } catch (_) {
+                            // si getImageData échoue, garder la perturbation rectangle seulement
+                        }
+
+                        canvas.toBlob((blob) => {
+                            URL.revokeObjectURL(objectUrl);
+                            resolve(blob || inputBlob);
+                        }, 'image/jpeg', 0.9 + Math.random() * 0.05);
+                    } catch (_) {
+                        URL.revokeObjectURL(objectUrl);
+                        resolve(inputBlob);
+                    }
+                };
+                img.onerror = () => {
+                    URL.revokeObjectURL(objectUrl);
+                    resolve(inputBlob);
+                };
+                img.src = objectUrl;
+            } catch (_) {
+                resolve(inputBlob);
+            }
+        });
+    }
+
+    async function downloadImageAsBlobWithFallback(imageUrl) {
+        const variants = buildImageVariants(imageUrl);
+
+        // 1) Priorité au bridge extension/background (souvent plus fiable que fetch page)
+        for (const candidate of variants) {
+            try {
+                const dataUrl = await requestImageDataUrlViaExtension(candidate);
+                const blob = dataUrlToBlob(dataUrl);
+                if (blob && blob.size > 0) {
+                    emitProgress('PHOTO_UPLOAD', 'Image récupérée via extension bridge', 'success');
+                    return { blob, resolvedUrl: candidate };
+                }
+            } catch (_) {
+                // continuer vers fallback page
+            }
+        }
+
+        // 2) Fallback fetch direct page context
+        for (const candidate of variants) {
+            try {
+                const resp = await fetch(candidate, {
+                    credentials: 'include',
+                    mode: 'cors',
+                    cache: 'no-store'
+                });
+                if (!resp.ok) continue;
+                const blob = await resp.blob();
+                if (blob && blob.size > 0) {
+                    return { blob, resolvedUrl: candidate };
+                }
+            } catch (_) {
+                // Essayer la variante suivante
+            }
+        }
+        return { blob: null, resolvedUrl: normalizeImageUrl(imageUrl) };
+    }
+
+    async function tryUploadPhotoByUrl(endpoint, uploadHeaders, uploadSessionId, imageUrl) {
+        const jsonPayloads = [
+            { upload_session_id: uploadSessionId, photo_url: imageUrl, temp_uuid: uploadSessionId },
+            { upload_session_id: uploadSessionId, image_url: imageUrl, temp_uuid: uploadSessionId },
+            { upload_session_id: uploadSessionId, url: imageUrl, temp_uuid: uploadSessionId },
+            { upload_session_id: uploadSessionId, photo: { url: imageUrl }, temp_uuid: uploadSessionId }
+        ];
+
+        for (const payload of jsonPayloads) {
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        ...uploadHeaders,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) continue;
+                const data = await response.json().catch(() => null);
+                const id = extractAnyPhotoId(data);
+                if (id) return { id, endpoint, method: 'POST', mode: 'json-url' };
+            } catch (_) {
+                // Continuer
+            }
+        }
+
+        // Fallback FormData URL
+        try {
+            const form = new FormData();
+            form.append('upload_session_id', uploadSessionId);
+            form.append('temp_uuid', uploadSessionId);
+            form.append('photo_url', imageUrl);
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: uploadHeaders,
+                credentials: 'include',
+                body: form
+            });
+            if (response.ok) {
+                const data = await response.json().catch(() => null);
+                const id = extractAnyPhotoId(data);
+                if (id) return { id, endpoint, method: 'POST', mode: 'form-url' };
+            }
+        } catch (_) {
+            // ignorer
+        }
+
+        return null;
+    }
+
+    async function uploadPhotosForSession(imageUrls, uploadSessionId, baseHeaders) {
+        // Mode "low-rate": limiter fortement les combinaisons pour éviter les 429.
+        const endpoints = [
+            'https://www.vinted.fr/api/v2/item_upload/drafts/photos',
+            'https://www.vinted.fr/api/v2/item_upload/photos'
+        ];
+        const fileFields = ['photo', 'file'];
+        const methods = ['PUT', 'POST'];
+        const uploadedIds = [];
+        const uploadHeaders = buildUploadHeaders(baseHeaders);
+        const capturedTemplate = getCapturedPhotoUploadTemplate();
+        const rateControl = {
+            lastAttemptAt: 0,
+            minDelayMs: 1200,
+            blockedUntil: 0
+        };
+
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+        const readRetryAfterMs = (response) => {
+            const retryAfter = response.headers?.get?.('retry-after');
+            if (!retryAfter) return 60000;
+            const asInt = parseInt(retryAfter, 10);
+            if (!Number.isNaN(asInt)) return Math.max(2000, asInt * 1000);
+            const asDate = Date.parse(retryAfter);
+            if (!Number.isNaN(asDate)) return Math.max(2000, asDate - Date.now());
+            return 60000;
+        };
+        let hitRateLimit = false;
+        const templateMode = !!capturedTemplate;
+
+        if (capturedTemplate) {
+            emitProgress(
+                'PHOTO_UPLOAD',
+                `Template upload détecté (${capturedTemplate.method} ${capturedTemplate.url})`,
+                'info'
+            );
+        } else {
+            emitProgress(
+                'PHOTO_UPLOAD',
+                'Aucun template upload capturé. Fais un upload manuel d’une photo sur Vinted pour apprentissage.',
+                'warning'
+            );
+        }
+
+        for (let i = 0; i < imageUrls.length; i++) {
+            if (hitRateLimit) {
+                emitProgress('PHOTO_UPLOAD', 'Upload stoppé: rate limit détecté, on évite de spammer l’API.', 'warning');
+                break;
+            }
+            const imageUrl = imageUrls[i];
+            emitProgress('PHOTO_UPLOAD', `Upload photo ${i + 1}/${imageUrls.length}`, 'info');
+
+            let blob = null;
+            let resolvedImageUrl = normalizeImageUrl(imageUrl);
+            try {
+                const dl = await downloadImageAsBlobWithFallback(imageUrl);
+                blob = dl.blob;
+                resolvedImageUrl = dl.resolvedUrl || resolvedImageUrl;
+            } catch (error) {
+                blob = null;
+            }
+
+            let uploadedId = null;
+            let uploadDebug = '';
+
+            // Priorité: rejouer la vraie requête capturée sur l'interface Vinted
+            if (capturedTemplate && !hitRateLimit && blob) {
+                try {
+                    const now = Date.now();
+                    if (now < rateControl.blockedUntil) {
+                        await sleep(rateControl.blockedUntil - now);
+                    }
+                    const sinceLast = Date.now() - rateControl.lastAttemptAt;
+                    if (sinceLast < rateControl.minDelayMs) {
+                        await sleep(rateControl.minDelayMs - sinceLast);
+                    }
+
+                    const replayHeaders = {
+                        ...uploadHeaders,
+                        ...pickHeadersForReplay(capturedTemplate.headers)
+                    };
+                    delete replayHeaders['Content-Type'];
+
+                    const preparedBlob = await ensureUploadCompatibleBlob(blob);
+                    const contentType = preparedBlob.type || 'image/jpeg';
+                    const extension = contentType.includes('png') ? 'png' : 'jpg';
+                    const file = new File([preparedBlob], `vinted_photo_${Date.now()}_${i}.${extension}`, {
+                        type: contentType
+                    });
+
+                    const form = new FormData();
+                    const candidateFields = capturedTemplate.fields?.length
+                        ? capturedTemplate.fields
+                        : ['photo', 'file', 'image'];
+                    let fileField = candidateFields.find((f) => /photo|file|image/i.test(f));
+                    if (!fileField) fileField = 'photo';
+                    form.append(fileField, file);
+
+                    const textFields = capturedTemplate.formTextFields || {};
+                    for (const key of Object.keys(textFields)) {
+                        const lower = key.toLowerCase();
+                        if (lower.includes('upload_session_id') || lower.includes('temp_uuid') || lower.includes('session_id') || lower === 'uuid') {
+                            form.append(key, uploadSessionId);
+                        } else {
+                            form.append(key, textFields[key]);
+                        }
+                    }
+                    // IMPORTANT: en mode template, ne pas injecter de champs additionnels non capturés
+                    // car /api/v2/photos peut rejeter des paramètres inattendus.
+
+                    const templateUrl = String(capturedTemplate.url || '');
+                    const urlObj = new URL(templateUrl, window.location.origin);
+                    if (urlObj.searchParams.has('upload_session_id')) {
+                        urlObj.searchParams.set('upload_session_id', uploadSessionId);
+                    }
+                    if (urlObj.searchParams.has('temp_uuid')) {
+                        urlObj.searchParams.set('temp_uuid', uploadSessionId);
+                    }
+                    if (urlObj.searchParams.has('session_id')) {
+                        urlObj.searchParams.set('session_id', uploadSessionId);
+                    }
+
+                    const resp = await fetch(urlObj.toString(), {
+                        method: capturedTemplate.method || 'POST',
+                        headers: replayHeaders,
+                        credentials: 'include',
+                        body: form
+                    });
+                    rateControl.lastAttemptAt = Date.now();
+
+                    if (resp.status === 429) {
+                        const retryAfterMs = readRetryAfterMs(resp);
+                        rateControl.blockedUntil = Date.now() + retryAfterMs;
+                        hitRateLimit = true;
+                        uploadDebug = `TEMPLATE ${resp.status} ${urlObj.pathname}`;
+                        emitProgress('PHOTO_UPLOAD', 'Rate limit sur endpoint template', 'error');
+                    } else if (resp.ok) {
+                        const data = await resp.json().catch(() => null);
+                        const id = extractAnyPhotoId(data);
+                        if (id) {
+                            uploadedId = id;
+                            emitProgress('PHOTO_UPLOAD', `Upload template OK (id=${id})`, 'success');
+                        } else {
+                            uploadDebug = `TEMPLATE 2xx sans id (${urlObj.pathname})`;
+                        }
+                    } else {
+                        const t = await resp.text().catch(() => '');
+                        uploadDebug = `TEMPLATE ${resp.status} ${String(t).slice(0, 80)}`;
+                    }
+                } catch (error) {
+                    uploadDebug = `TEMPLATE error: ${error?.message || 'unknown'}`;
+                }
+            }
+
+            // En mode template capturé, on n'essaie PAS le brute-force pour éviter 404/429.
+            for (const endpoint of (templateMode ? [] : endpoints)) {
+                if (uploadedId) break;
+                for (const method of methods) {
+                    if (uploadedId) break;
+                    for (const fieldName of fileFields) {
+                        if (uploadedId || hitRateLimit) break;
+                        try {
+                            if (!blob) break;
+
+                            const now = Date.now();
+                            if (now < rateControl.blockedUntil) {
+                                const waitMs = rateControl.blockedUntil - now;
+                                emitProgress('PHOTO_UPLOAD', `Rate limit: attente ${Math.ceil(waitMs / 1000)}s`, 'warning');
+                                await sleep(waitMs);
+                            }
+
+                            const sinceLast = Date.now() - rateControl.lastAttemptAt;
+                            if (sinceLast < rateControl.minDelayMs) {
+                                await sleep(rateControl.minDelayMs - sinceLast);
+                            }
+
+                            const form = new FormData();
+                            const preparedBlob = await ensureUploadCompatibleBlob(blob);
+                            const contentType = preparedBlob.type || 'image/jpeg';
+                            const extension = contentType.includes('png') ? 'png' : 'jpg';
+                            const file = new File([preparedBlob], `vinted_photo_${Date.now()}_${i}.${extension}`, {
+                                type: contentType
+                            });
+                            form.append(fieldName, file);
+                            form.append('upload_session_id', uploadSessionId);
+                            form.append('temp_uuid', uploadSessionId);
+
+                            const candidateUrls = [
+                                `${endpoint}?temp_uuid=${encodeURIComponent(uploadSessionId)}`,
+                                `${endpoint}?upload_session_id=${encodeURIComponent(uploadSessionId)}`,
+                                endpoint
+                            ];
+
+                            for (const candidateUrl of candidateUrls) {
+                                if (uploadedId || hitRateLimit) break;
+                                const response = await fetch(candidateUrl, {
+                                    method,
+                                    headers: uploadHeaders,
+                                    credentials: 'include',
+                                    body: form
+                                });
+                                rateControl.lastAttemptAt = Date.now();
+
+                                if (response.status === 429) {
+                                    const retryAfterMs = readRetryAfterMs(response);
+                                    rateControl.blockedUntil = Date.now() + retryAfterMs;
+                                    uploadDebug = `${method} ${candidateUrl} -> 429 rate limited`;
+                                    emitProgress(
+                                        'PHOTO_UPLOAD',
+                                        `Rate limit API (${method} ${endpoint.split('/').pop()})`,
+                                        'error'
+                                    );
+                                    hitRateLimit = true;
+                                    break;
+                                }
+
+                                if (!response.ok) {
+                                    const responseText = await response.text().catch(() => '');
+                                    uploadDebug = `${method} ${candidateUrl} -> ${response.status} ${responseText.slice(0, 80)}`;
+                                    continue;
+                                }
+
+                                const data = await response.json().catch(() => null);
+                                const id = extractAnyPhotoId(data);
+                                if (id) {
+                                    uploadedId = id;
+                                    console.log('[Automation Engine Fresh] ✅ Photo uploadée:', {
+                                        endpoint: candidateUrl,
+                                        method,
+                                        fieldName,
+                                        id
+                                    });
+                                    emitProgress('PHOTO_UPLOAD', `Upload binaire OK via ${method} ${fieldName}`, 'success');
+                                }
+                            }
+                        } catch (_) {
+                            // Continuer sur le prochain couple endpoint/champ
+                        }
+                    }
+                }
+            }
+
+            // Fallback: si téléchargement impossible ou upload binaire refusé, tenter upload direct par URL
+            if (!uploadedId && !hitRateLimit && !templateMode) {
+                emitProgress('PHOTO_UPLOAD', `Fallback upload URL photo ${i + 1}`, 'warning');
+                for (const endpoint of endpoints) {
+                    const byUrl = await tryUploadPhotoByUrl(
+                        endpoint,
+                        uploadHeaders,
+                        uploadSessionId,
+                        resolvedImageUrl
+                    );
+                    if (byUrl?.id) {
+                        uploadedId = byUrl.id;
+                        console.log('[Automation Engine Fresh] ✅ Photo uploadée via URL:', {
+                            endpoint: byUrl.endpoint,
+                            method: byUrl.method,
+                            mode: byUrl.mode,
+                            id: byUrl.id
+                        });
+                        emitProgress('PHOTO_UPLOAD', `Upload URL OK via ${byUrl.endpoint.split('/').pop()}`, 'success');
+                        break;
+                    }
+                }
+            }
+
+            if (uploadedId) {
+                uploadedIds.push(uploadedId);
+                emitProgress('PHOTO_UPLOAD', `Photo ${i + 1} uploadée (id=${uploadedId})`, 'success');
+            } else {
+                if (uploadDebug) {
+                    emitProgress('PHOTO_UPLOAD', `Debug upload photo ${i + 1}: ${uploadDebug}`, 'warning');
+                }
+                emitProgress('PHOTO_UPLOAD', `Photo ${i + 1} non uploadée via API`, 'error');
+            }
+        }
+
+        return uploadedIds;
+    }
+
     // Fonction pour créer un brouillon avec les headers de la vraie requête qui fonctionne
     async function createDraftWithWorkingHeaders(itemData, config, settings) {
         console.log('[Automation Engine Fresh] 🎯 Création brouillon avec les headers de la vraie requête qui fonctionne...');
@@ -2226,6 +3015,23 @@ try {
 
             console.log('[Automation Engine Fresh] 🔐 Headers utilisés:', headers);
 
+            const sourceImages = Array.isArray(itemData.images) ? itemData.images : [];
+            let uploadedPhotoIds = [];
+            if (sourceImages.length > 0) {
+                emitProgress('PHOTO_UPLOAD', `Tentative upload API de ${sourceImages.length} photo(s)...`, 'info');
+                uploadedPhotoIds = await uploadPhotosForSession(sourceImages, tempUuid, headers);
+                emitProgress(
+                    'PHOTO_UPLOAD',
+                    `Upload photos terminé: ${uploadedPhotoIds.length}/${sourceImages.length}`,
+                    uploadedPhotoIds.length > 0 ? 'success' : 'warning'
+                );
+            }
+
+            payload.draft.assigned_photos = uploadedPhotoIds.map((id, index) => ({ id, position: index + 1 }));
+            if (uploadedPhotoIds.length > 0) {
+                payload.draft.photo_ids = uploadedPhotoIds.slice();
+            }
+
             // Appeler l'API avec les headers de la vraie requête
             const response = await fetch('https://www.vinted.fr/api/v2/item_upload/drafts', {
                 method: 'POST',
@@ -2254,12 +3060,26 @@ try {
             const result = await response.json();
             console.log('[Automation Engine Fresh] ✅ Brouillon créé avec succès:', result);
 
+            const photosRequested = sourceImages.length;
+            const photosAttached = uploadedPhotoIds.length;
+            const photoUploadFailed = photosRequested > 0 && photosAttached === 0;
+            if (photoUploadFailed) {
+                emitProgress(
+                    'PHOTO_UPLOAD',
+                    `Brouillon créé SANS photos (${photosAttached}/${photosRequested})`,
+                    'error'
+                );
+            }
+
             return {
-                success: true,
+                success: !photoUploadFailed,
                 draftId: result.draft?.id,
                 tempUuid: tempUuid,
                 endpoint: '/api/v2/item_upload/drafts',
-                result: result
+                result: result,
+                photosRequested,
+                photosAttached,
+                photoUploadFailed
             };
 
         } catch (error) {

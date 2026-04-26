@@ -63,8 +63,9 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
           };
 
           await chrome.tabs.sendMessage(tabId, {
-            action: "VINTED_AUTOMATION_START",
+            action: "START_SAFE_DOM_DRAFT",
             itemId,
+            item: req.item || null,
             settings,
           });
 
@@ -86,6 +87,10 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
               title: result.title || `Article ${key}`,
               timestamp: now,
               error: result.error || null,
+              imageCount: result.imageCount ?? null,
+              draftId: result.draftId ?? null,
+              photosAttached: result.photosAttached ?? null,
+              photoUploadFailed: !!result.photoUploadFailed,
             };
 
             await chrome.storage.local.set({
@@ -100,6 +105,16 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
           }
 
           sendResponse({ success: true, handled: results.length });
+          return;
+        }
+
+        case "DOWNLOAD_IMAGE_DATAURL": {
+          if (!req.url) {
+            sendResponse({ success: false, error: "url manquante" });
+            return;
+          }
+          const data = await downloadImageAsDataUrl(req.url);
+          sendResponse({ success: true, ...data });
           return;
         }
 
@@ -148,4 +163,66 @@ function requestTab(tabId, message) {
       resolve(response);
     });
   });
+}
+
+async function downloadImageAsDataUrl(url) {
+  const candidates = buildImageUrlCandidates(url);
+  let lastError = null;
+
+  for (const candidate of candidates) {
+    try {
+      const resp = await fetch(candidate, {
+        method: "GET",
+        credentials: "omit",
+        cache: "no-store",
+        referrer: "https://www.vinted.fr/",
+        referrerPolicy: "strict-origin-when-cross-origin",
+      });
+      if (!resp.ok) {
+        lastError = new Error(`download failed: ${resp.status}`);
+        continue;
+      }
+      const contentType = resp.headers.get("content-type") || "image/jpeg";
+      const buffer = await resp.arrayBuffer();
+      if (!buffer || buffer.byteLength === 0) {
+        lastError = new Error("empty image payload");
+        continue;
+      }
+      const base64 = arrayBufferToBase64(buffer);
+      return {
+        dataUrl: `data:${contentType};base64,${base64}`,
+        contentType,
+        byteLength: buffer.byteLength,
+        resolvedUrl: candidate,
+      };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error("image download failed for all candidates");
+}
+
+function buildImageUrlCandidates(url) {
+  if (!url || typeof url !== "string") return [];
+  let normalized = url.trim();
+  if (normalized.startsWith("//")) normalized = `https:${normalized}`;
+  if (normalized.startsWith("http://")) normalized = normalized.replace("http://", "https://");
+  const set = new Set([normalized]);
+  set.add(normalized.replace("/original/", "/"));
+  set.add(normalized.replace("/thumb/", "/"));
+  set.add(normalized.replace("/medium/", "/"));
+  set.add(normalized.replace(/\/\d+x\d+\//, "/"));
+  return Array.from(set).filter(Boolean);
+}
+
+function arrayBufferToBase64(buffer) {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    const chunk = bytes.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
 }
