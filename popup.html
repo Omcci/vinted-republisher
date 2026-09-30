@@ -1,143 +1,244 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vinted Auto Republisher</title>
-    <link rel="stylesheet" href="popup.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vinted Republisher PRO</title>
+  <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <img src="icons/icon32.png" alt="Logo" class="logo">
-            <h1>Vinted Auto Republisher</h1>
+  <div class="container">
+    <header class="header">
+      <div class="brand">
+        <img src="icons/icon32.png" alt="" class="logo">
+        <div>
+          <h1>Vinted Republisher PRO</h1>
+          <p class="tagline">Sauvegarde sécurisée & republication intelligente</p>
         </div>
+      </div>
+    </header>
 
-        <div class="status" id="status">
-            <span class="status-indicator" id="statusIndicator"></span>
-            <span id="statusText">Vérification de la page...</span>
-        </div>
-
-        <div class="section">
-            <h2>Paramètres de modification d'images</h2>
-            
-            <div class="setting">
-                <label for="cropPercentage">Recadrage (%)</label>
-                <select id="cropPercentage">
-                    <option value="3">3%</option>
-                    <option value="5" selected>5%</option>
-                    <option value="7">7%</option>
-                    <option value="10">10%</option>
-                </select>
-            </div>
-
-            <div class="setting">
-                <label for="addWatermark">Ajouter un watermark</label>
-                <input type="checkbox" id="addWatermark" checked>
-            </div>
-
-            <div class="setting">
-                <label for="watermarkText">Texte du watermark</label>
-                <input type="text" id="watermarkText" value="" placeholder="Laissez vide pour watermark invisible">
-            </div>
-
-            <div class="setting">
-                <label for="rotationAngle">Rotation légère (degrés)</label>
-                <select id="rotationAngle">
-                    <option value="0">Aucune</option>
-                    <option value="0.5" selected>0.5°</option>
-                    <option value="1">1°</option>
-                    <option value="2">2°</option>
-                </select>
-            </div>
-
-            <div class="setting">
-                <label for="qualityReduction">Réduction qualité (%)</label>
-                <select id="qualityReduction">
-                    <option value="0">Aucune</option>
-                    <option value="5" selected>5%</option>
-                    <option value="10">10%</option>
-                    <option value="15">15%</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2>Republication</h2>
-            
-            <div class="setting">
-                <label for="delayBetweenItems">Délai entre republications (secondes)</label>
-                <select id="delayBetweenItems">
-                    <option value="30">30 secondes</option>
-                    <option value="60" selected>1 minute</option>
-                    <option value="120">2 minutes</option>
-                    <option value="300">5 minutes</option>
-                </select>
-            </div>
-
-            <div class="setting">
-                <label for="maxItemsPerSession">Maximum d'articles par session</label>
-                <select id="maxItemsPerSession">
-                    <option value="5">5</option>
-                    <option value="10" selected>10</option>
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="actions">
-            <button id="scanItems" class="btn btn-secondary">
-                <span id="scanText">Scanner les annonces</span>
-                <span class="spinner" id="scanSpinner" style="display: none;"></span>
-            </button>
-            
-            <div class="manual-steps" style="display: none;" id="manualSteps">
-                <h3>📋 Assistant Copy-Paste - Mode Guidé</h3>
-                
-                <button id="showData" class="btn btn-info" disabled>
-                    <span>📄 Afficher les données à copier</span>
-                </button>
-                
-                <div id="extractedData" style="display: none; margin: 10px 0; padding: 10px; border: 1px solid #ddd; background: #f9f9f9;">
-                    <h4>📋 Données extraites :</h4>
-                    <div id="dataContent"></div>
-                    <button id="openCreatePage" class="btn btn-primary" style="margin-top: 10px;">
-                        🔗 Ouvrir la page de création
-                    </button>
-                </div>
-                
-                <button id="viewDrafts" class="btn btn-secondary" disabled>
-                    <span>👀 Voir mes brouillons</span>
-                </button>
-            </div>
-            
-            <button id="republishSelected" class="btn btn-primary" disabled>
-                <span id="republishText">🤖 Automation Complète</span>
-                <span class="spinner" id="republishSpinner" style="display: none;"></span>
-            </button>
-        </div>
-
-        <div class="items-list" id="itemsList" style="display: none;">
-            <h3>Annonces trouvées (<span id="itemsCount">0</span>)</h3>
-            <div class="items-container" id="itemsContainer">
-                <!-- Les annonces seront ajoutées ici dynamiquement -->
-            </div>
-        </div>
-
-        <div class="progress" id="progress" style="display: none;">
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill"></div>
-            </div>
-            <div class="progress-text" id="progressText">0 / 0</div>
-        </div>
-
-        <div class="logs" id="logs" style="display: none;">
-            <h3>Journal des opérations</h3>
-            <div class="logs-container" id="logsContainer"></div>
-        </div>
+    <div class="status" id="status" role="status">
+      <span class="status-indicator" id="statusIndicator"></span>
+      <span id="statusText">Vérification de la page…</span>
     </div>
 
-    <script src="popup.js"></script>
+    <!-- Navigation par Onglets -->
+    <nav class="nav-tabs" role="tablist">
+      <button class="nav-tab active" id="tabBtnRepublish" data-tab="panelRepublish" type="button" role="tab" aria-selected="true">
+        🔄 Republication
+      </button>
+      <button class="nav-tab" id="tabBtnVault" data-tab="panelVault" type="button" role="tab" aria-selected="false">
+        📦 Coffre-fort (<span id="vaultTabBadge">0</span>)
+      </button>
+    </nav>
+
+    <!-- ONGLET 1: REPUBLICATION -->
+    <div id="panelRepublish" class="tab-panel">
+      <section class="flow-card" aria-labelledby="flow-title">
+        <h2 id="flow-title">Republication</h2>
+        <ol class="flow-steps">
+          <li>Scanner le dressing / l’annonce</li>
+          <li>Sélectionner les annonces à republier ou sauvegarder</li>
+          <li>Créer un brouillon (photos modifiées anti-doublon)</li>
+          <li>Valider → sauvegarder → confirmer suppression/publication</li>
+        </ol>
+
+        <div class="actions-primary">
+          <button id="scanItems" class="btn btn-secondary" type="button">
+            <span id="scanText">1. Scanner dressing</span>
+            <span class="spinner" id="scanSpinner" hidden></span>
+          </button>
+          <button id="republishSelected" class="btn btn-primary" type="button" disabled>
+            <span id="republishText">2. Créer brouillon</span>
+            <span class="spinner" id="republishSpinner" hidden></span>
+          </button>
+        </div>
+
+        <label class="toggle-row" style="margin-top:10px;">
+          <span>Autoriser suppression + publication (1 clic overlay)</span>
+          <input type="checkbox" id="allowDestructiveRepublish">
+        </label>
+        <button id="finalizeCurrentDraft" class="btn btn-primary" type="button" style="margin-top:8px;width:100%;" disabled>
+          Finaliser le brouillon ouvert (delete + publish)
+        </button>
+        <button id="publishCurrentDraft" class="btn btn-secondary" type="button" style="margin-top:8px;width:100%;">
+          Publier le brouillon ouvert (sans delete)
+        </button>
+        <p class="hint" id="selectionHint">Aucune annonce sélectionnée. Toggle OFF = mode safe uniquement.</p>
+      </section>
+
+      <div class="items-list" id="itemsList" hidden>
+        <div class="items-list-head">
+          <h3>Annonces <span class="count" id="itemsCount">0</span></h3>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <button type="button" class="linkish" id="selectAllItems">Tout</button>
+            <button type="button" class="linkish" id="saveSelectedToVault" style="color:var(--teal);font-weight:600;">💾 Sauvegarder sélection</button>
+          </div>
+        </div>
+        <div class="items-container" id="itemsContainer"></div>
+      </div>
+
+      <details class="panel" id="photoPanel" open>
+        <summary>Photos anti-détection</summary>
+        <div class="panel-body">
+          <label class="toggle-row">
+            <span>Modifier les photos avant upload</span>
+            <input type="checkbox" id="photoModsEnabled" checked>
+          </label>
+          <p class="hint">Recadrage + légère rotation + bruit invisible. Recommandé pour éviter le rejet doublon.</p>
+
+          <div class="setting">
+            <label for="cropPercentage">Recadrage</label>
+            <select id="cropPercentage">
+              <option value="3">3%</option>
+              <option value="4" selected>4%</option>
+              <option value="5">5%</option>
+              <option value="7">7%</option>
+              <option value="10">10%</option>
+            </select>
+          </div>
+          <div class="setting">
+            <label for="rotationAngle">Rotation</label>
+            <select id="rotationAngle">
+              <option value="0">0°</option>
+              <option value="0.5">0.5°</option>
+              <option value="0.6" selected>0.6°</option>
+              <option value="1">1°</option>
+              <option value="2">2°</option>
+            </select>
+          </div>
+          <div class="setting">
+            <label for="qualityReduction">Qualité JPEG −</label>
+            <select id="qualityReduction">
+              <option value="0">0%</option>
+              <option value="5">5%</option>
+              <option value="6" selected>6%</option>
+              <option value="10">10%</option>
+              <option value="15">15%</option>
+            </select>
+          </div>
+          <label class="toggle-row">
+            <span>Bruit subtil (recommandé)</span>
+            <input type="checkbox" id="addNoise" checked>
+          </label>
+          <label class="toggle-row">
+            <span>Watermark texte</span>
+            <input type="checkbox" id="addWatermark">
+          </label>
+          <div class="setting">
+            <label for="watermarkText">Texte</label>
+            <input type="text" id="watermarkText" value="" placeholder="Optionnel">
+          </div>
+        </div>
+      </details>
+
+      <details class="panel" id="sessionPanel">
+        <summary>Session (batch)</summary>
+        <div class="panel-body">
+          <div class="setting">
+            <label for="delayBetweenItems">Délai entre annonces</label>
+            <select id="delayBetweenItems">
+              <option value="30">30 s</option>
+              <option value="60" selected>1 min</option>
+              <option value="120">2 min</option>
+              <option value="300">5 min</option>
+            </select>
+          </div>
+          <div class="setting">
+            <label for="maxItemsPerSession">Max / session</label>
+            <select id="maxItemsPerSession">
+              <option value="1" selected>1</option>
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="20">20</option>
+            </select>
+          </div>
+        </div>
+      </details>
+
+      <details class="panel dx-panel" id="dxPanel">
+        <summary>Outils développeur</summary>
+        <div class="panel-body actions-dx">
+          <button id="crawlSchemas" class="btn btn-ghost" type="button">
+            <span id="crawlSchemasText">Cartographier schémas</span>
+            <span class="spinner" id="crawlSchemasSpinner" hidden></span>
+          </button>
+          <button id="copySchemaExport" class="btn btn-ghost" type="button">Copier export schémas</button>
+          <button id="copyDiagnostic" class="btn btn-ghost" type="button">Copier diagnostic</button>
+          <button id="exportAgentLogs" class="btn btn-ghost" type="button">Préparer logs agent</button>
+          <p class="hint">Colle le fichier dans <code>agent-inbox/latest.log</code> pour le loop agent.</p>
+        </div>
+      </details>
+
+      <div class="progress" id="progress" hidden>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+        <div class="progress-text" id="progressText">0 / 0</div>
+      </div>
+
+      <div class="logs" id="logs" hidden>
+        <h3>Journal</h3>
+        <div class="logs-container" id="logsContainer"></div>
+      </div>
+    </div>
+
+    <!-- ONGLET 2: COFFRE-FORT D'ANNONCES -->
+    <div id="panelVault" class="tab-panel" hidden>
+      <section class="flow-card">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <h2>Coffre-fort d'annonces (<span id="vaultTotalCount">0</span>)</h2>
+          <button id="refreshVaultBtn" class="linkish" type="button" title="Actualiser la liste">🔄 Rafraîchir</button>
+        </div>
+        <p class="hint">Toutes vos annonces archivées avec photos originales & modifiées, prêtes à être pré-remplies ou exportées hors ligne.</p>
+
+        <button id="saveCurrentPageVaultBtn" class="btn btn-secondary" type="button" style="margin-top:10px;width:100%;">
+          📥 Sauvegarder l'annonce de la page active
+        </button>
+
+        <div class="vault-toolbar" style="margin-top:10px;">
+          <input type="search" id="vaultSearchInput" placeholder="Rechercher (titre, marque, taille...)" class="search-input">
+          <button id="exportAllVaultBtn" class="btn btn-ghost" type="button" style="width:auto;white-space:nowrap;padding:7px 10px;font-size:11px;">
+            📤 Exporter tout
+          </button>
+        </div>
+
+        <div id="vaultCardsContainer" class="vault-container" style="margin-top:10px;">
+          <div class="empty-state">Chargement du coffre-fort...</div>
+        </div>
+      </section>
+
+      <section class="flow-card" aria-labelledby="restore-title">
+        <h2 id="restore-title">Importer ou restaurer un backup</h2>
+        <p class="hint">Glissez-déposez un fichier JSON (<code>vinted-backup-….json</code>) pour restaurer une annonce.</p>
+        <div
+          class="drop-zone"
+          id="backupDropZone"
+          tabindex="0"
+          role="button"
+          aria-label="Déposer un backup JSON ici"
+        >
+          <strong>Glisse-dépose ton backup ici</strong>
+          <span>ou clique pour choisir un fichier</span>
+          <input type="file" id="backupFileInput" accept=".json,application/json,image/*" multiple hidden>
+        </div>
+        <div class="actions-primary" style="margin-top:8px;">
+          <button id="restoreLocalBackup" class="btn btn-secondary" type="button">
+            Utiliser le dernier backup local
+          </button>
+        </div>
+        <p class="hint" id="backupImportHint">Mode safe à la restauration (pas de delete auto).</p>
+      </section>
+    </div>
+
+    <!-- Legacy hooks kept for popup.js compatibility -->
+    <div id="manualSteps" hidden>
+      <button id="showData" type="button"></button>
+      <div id="extractedData" hidden><div id="dataContent"></div>
+        <button id="openCreatePage" type="button"></button>
+      </div>
+      <button id="viewDrafts" type="button"></button>
+    </div>
+  </div>
+  <script src="popup.js"></script>
 </body>
 </html>

@@ -1,0 +1,1862 @@
+{
+  "version": 1,
+  "generatedAt": "2026-07-07T15:31:02.474Z",
+  "source": "vinted-schema-crawler",
+  "schemas": {
+    "156": {
+      "catalogBranchTitles": [
+        "Femmes",
+        "Sacs",
+        "Sacs à main"
+      ],
+      "catalogId": "156",
+      "categoryTitle": "Sacs à main",
+      "discoveredAt": "2026-07-06T22:53:07.534Z",
+      "fieldOrder": [
+        "category",
+        "brand",
+        "condition",
+        "material",
+        "colors",
+        "size",
+        "title",
+        "description",
+        "price"
+      ],
+      "fields": {
+        "brand": {
+          "detectedLabel": "Marque",
+          "displayText": "Marque",
+          "domIdPrefixes": [
+            "suggested-brand-",
+            "brand-"
+          ],
+          "id": "brand",
+          "label": "Marque",
+          "labelAliases": [
+            "Brand"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#brand, input[name*='brand']",
+            "container": "div",
+            "primary": "input#brand"
+          },
+          "widget": "brandSearch"
+        },
+        "category": {
+          "detectedLabel": "Catégorie",
+          "displayText": "Catégorie Sacs à main Femmes > Sacs Sacs à dos Femmes > Sacs Sacs à bandoulière Femmes > Sacs Sacs à langer Enfants > Bain et change Sacs à dos Hommes > Accessoires > Sacs et sacoc...",
+          "domIdPrefixes": [
+            "catalog-"
+          ],
+          "id": "category",
+          "label": "Catégorie",
+          "labelAliases": [
+            "Categorie",
+            "Category"
+          ],
+          "optionPreview": [
+            "Sacs à mainFemmes > Sacs",
+            "Sacs à dosFemmes > Sacs",
+            "Sacs à bandoulièreFemmes > Sacs",
+            "Sacs à langerEnfants > Bain et change",
+            "Sacs à dosHommes > Accessoires > Sacs et sacoches",
+            "Sacs et sacs à dosEnfants > Vêtements pour garçons",
+            "Sacs et sacs à dosEnfants > Vêtements pour filles",
+            "Sacs à dos de trekSport > Sports de plein air > Sacs de randonnée",
+            "Sacs à magnésieSport > Sports de plein air > Escalade et escalade de bloc",
+            "Sacs à bandoulièreHommes > Accessoires > Sacs et sacoches",
+            "Sacs de transport & sacs à dosMaison > Animaux > Chats > Transport",
+            "Sacs bananeFemmes > Sacs"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": "input#catalog, input[name*='catalog']",
+            "container": "div",
+            "primary": "input#category"
+          },
+          "widget": "singleSelect"
+        },
+        "colors": {
+          "detectedLabel": "Couleur",
+          "displayText": "Couleur",
+          "domIdPrefixes": [
+            "suggested-color-",
+            "color-"
+          ],
+          "id": "colors",
+          "label": "Couleur",
+          "labelAliases": [
+            "Color",
+            "Colors",
+            "Colour",
+            "Colours"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#color, input[name*='color']",
+            "container": "div",
+            "primary": "input#color"
+          },
+          "widget": "multiSelect"
+        },
+        "condition": {
+          "detectedLabel": "État",
+          "displayText": "État",
+          "domIdPrefixes": [
+            "condition-"
+          ],
+          "id": "condition",
+          "label": "État",
+          "labelAliases": [
+            "Etat",
+            "Condition",
+            "État de l'article",
+            "Etat de l'article",
+            "État de l'objet"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#status, input[name*='status']",
+            "container": "div",
+            "primary": "input#condition"
+          },
+          "widget": "singleSelect"
+        },
+        "description": {
+          "detectedLabel": "Description",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "description",
+          "label": "Description",
+          "labelAliases": [
+            "Description"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "textarea#description"
+          },
+          "widget": "textInput"
+        },
+        "material": {
+          "detectedLabel": "Matériau",
+          "displayText": "Matériau (recommandé)",
+          "domIdPrefixes": [
+            "material-"
+          ],
+          "id": "material",
+          "label": "Matériau",
+          "labelAliases": [
+            "Matière",
+            "Matiere",
+            "Materiau",
+            "Material",
+            "Composition"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#material, input[name*='material']",
+            "container": "div",
+            "primary": "input#material"
+          },
+          "widget": "itemSelect"
+        },
+        "price": {
+          "detectedLabel": "Prix",
+          "displayText": "Vends ton article Photos Déposer les fichiers ici Ajoute des photos Présentation de ton article Titre Description Détails de l'article Catégorie Sacs à main Femmes > Sacs Sacs à do...",
+          "domIdPrefixes": [],
+          "id": "price",
+          "label": "Prix",
+          "labelAliases": [
+            "Price"
+          ],
+          "optionPreview": [
+            "Ajoute des photos",
+            "CatégorieSacs à mainFemmes > SacsSacs à dosFemmes > SacsSacs à bandoulièreFemmes...",
+            "Sacs à mainFemmes > Sacs",
+            "Sacs à dosFemmes > Sacs",
+            "Sacs à bandoulièreFemmes > Sacs",
+            "Sacs à langerEnfants > Bain et change",
+            "Sacs à dosHommes > Accessoires > Sacs et sacoches",
+            "Sacs et sacs à dosEnfants > Vêtements pour garçons",
+            "Sacs et sacs à dosEnfants > Vêtements pour filles",
+            "Sacs à dos de trekSport > Sports de plein air > Sacs de randonnée",
+            "Sacs à magnésieSport > Sports de plein air > Escalade et escalade de bloc",
+            "Sacs à bandoulièreHommes > Accessoires > Sacs et sacoches"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#price"
+          },
+          "widget": "textInput"
+        },
+        "size": {
+          "detectedLabel": "Taille",
+          "displayText": "Taille",
+          "domIdPrefixes": [
+            "size-"
+          ],
+          "id": "size",
+          "label": "Taille",
+          "labelAliases": [
+            "Size",
+            "Pointure"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#size, input[name*='size']",
+            "container": "div",
+            "primary": "input#size"
+          },
+          "widget": "sizeSelect"
+        },
+        "title": {
+          "detectedLabel": "Titre",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "title",
+          "label": "Titre",
+          "labelAliases": [
+            "Title"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#title"
+          },
+          "widget": "textInput"
+        }
+      },
+      "fingerprint": {
+        "labels": [
+          "Catégorie",
+          "Marque",
+          "État",
+          "Matériau",
+          "Couleur",
+          "Taille",
+          "Titre",
+          "Description",
+          "Prix"
+        ],
+        "widgets": {
+          "brand": "brandSearch",
+          "category": "singleSelect",
+          "colors": "multiSelect",
+          "condition": "singleSelect",
+          "description": "textInput",
+          "material": "itemSelect",
+          "price": "textInput",
+          "size": "sizeSelect",
+          "title": "textInput"
+        }
+      },
+      "isComplete": true,
+      "locale": "fr-FR",
+      "schemaSource": "local-cache",
+      "selectionWarning": "Catégorie non validée (dropdownOpen=false, visible=—, committed=—, primary=—)",
+      "source": "dom-discovery",
+      "updatedAt": "2026-07-07T15:28:07.773Z",
+      "url": "https://www.vinted.fr/items/new",
+      "version": 1
+    },
+    "221": {
+      "catalogBranchTitles": [
+        "Femmes",
+        "Vêtements",
+        "Hauts et t-shirts",
+        "T-shirts"
+      ],
+      "catalogId": "221",
+      "categoryTitle": "T-shirts",
+      "discoveredAt": "2026-07-06T22:51:44.281Z",
+      "fieldOrder": [
+        "category",
+        "brand",
+        "condition",
+        "material",
+        "colors",
+        "size",
+        "title",
+        "description",
+        "price"
+      ],
+      "fields": {
+        "brand": {
+          "detectedLabel": "Marque",
+          "displayText": "Marque",
+          "domIdPrefixes": [
+            "suggested-brand-",
+            "brand-"
+          ],
+          "id": "brand",
+          "label": "Marque",
+          "labelAliases": [
+            "Brand"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#brand, input[name*='brand']",
+            "container": "div",
+            "primary": "input#brand"
+          },
+          "widget": "brandSearch"
+        },
+        "category": {
+          "detectedLabel": "Catégorie",
+          "displayText": "Catégorie",
+          "domIdPrefixes": [
+            "catalog-"
+          ],
+          "id": "category",
+          "label": "Catégorie",
+          "labelAliases": [
+            "Categorie",
+            "Category"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": "input#catalog, input[name*='catalog']",
+            "container": "div",
+            "primary": "input#category"
+          },
+          "widget": "categorySearch"
+        },
+        "colors": {
+          "detectedLabel": "Couleur",
+          "displayText": "Couleur",
+          "domIdPrefixes": [
+            "suggested-color-",
+            "color-"
+          ],
+          "id": "colors",
+          "label": "Couleur",
+          "labelAliases": [
+            "Color",
+            "Colors",
+            "Colour",
+            "Colours"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#color, input[name*='color']",
+            "container": "div",
+            "primary": "input#color"
+          },
+          "widget": "multiSelect"
+        },
+        "condition": {
+          "detectedLabel": "État",
+          "displayText": "État",
+          "domIdPrefixes": [
+            "condition-"
+          ],
+          "id": "condition",
+          "label": "État",
+          "labelAliases": [
+            "Etat",
+            "Condition",
+            "État de l'article",
+            "Etat de l'article",
+            "État de l'objet"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#status, input[name*='status']",
+            "container": "div",
+            "primary": "input#condition"
+          },
+          "widget": "singleSelect"
+        },
+        "description": {
+          "detectedLabel": "Description",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "description",
+          "label": "Description",
+          "labelAliases": [
+            "Description"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "textarea#description"
+          },
+          "widget": "textInput"
+        },
+        "material": {
+          "detectedLabel": "Matériau",
+          "displayText": "Matériau (recommandé)",
+          "domIdPrefixes": [
+            "material-"
+          ],
+          "id": "material",
+          "label": "Matériau",
+          "labelAliases": [
+            "Matière",
+            "Matiere",
+            "Materiau",
+            "Material",
+            "Composition"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#material, input[name*='material']",
+            "container": "div",
+            "primary": "input#material"
+          },
+          "widget": "itemSelect"
+        },
+        "price": {
+          "detectedLabel": "Prix",
+          "displayText": "Vends ton article Photos Déposer les fichiers ici Ajoute des photos Présentation de ton article Titre Description Détails de l'article Catégorie Marque Taille Dimensions (recommand...",
+          "domIdPrefixes": [],
+          "id": "price",
+          "label": "Prix",
+          "labelAliases": [
+            "Price"
+          ],
+          "optionPreview": [
+            "Ajoute des photos",
+            "Catégorie",
+            "Marque",
+            "Taille",
+            "Dimensions (recommandé)cmcmComment mesurer correctement ton article ? Consulte n...",
+            "État",
+            "Couleur",
+            "Matériau (recommandé)",
+            "Voir les détails des dimensions et indemnisations",
+            "Donner un avis",
+            "Sauvegarder le brouillon",
+            "Ajouter"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#price"
+          },
+          "widget": "textInput"
+        },
+        "size": {
+          "detectedLabel": "Taille",
+          "displayText": "Taille",
+          "domIdPrefixes": [
+            "size-"
+          ],
+          "id": "size",
+          "label": "Taille",
+          "labelAliases": [
+            "Size",
+            "Pointure"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#size, input[name*='size']",
+            "container": "div",
+            "primary": "input#size"
+          },
+          "widget": "sizeSelect"
+        },
+        "title": {
+          "detectedLabel": "Titre",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "title",
+          "label": "Titre",
+          "labelAliases": [
+            "Title"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#title"
+          },
+          "widget": "textInput"
+        }
+      },
+      "fingerprint": {
+        "labels": [
+          "Catégorie",
+          "Marque",
+          "État",
+          "Matériau",
+          "Couleur",
+          "Taille",
+          "Titre",
+          "Description",
+          "Prix"
+        ],
+        "widgets": {
+          "brand": "brandSearch",
+          "category": "categorySearch",
+          "colors": "multiSelect",
+          "condition": "singleSelect",
+          "description": "textInput",
+          "material": "itemSelect",
+          "price": "textInput",
+          "size": "sizeSelect",
+          "title": "textInput"
+        }
+      },
+      "isComplete": true,
+      "locale": "fr-FR",
+      "schemaSource": "local-cache",
+      "selectionWarning": "Catégorie non validée (dropdownOpen=false, visible=—, committed=—, primary=—)",
+      "source": "dom-discovery",
+      "updatedAt": "2026-07-07T15:27:49.755Z",
+      "url": "https://www.vinted.fr/items/new",
+      "version": 1
+    },
+    "574": {
+      "catalogBranchTitles": [
+        "Femmes",
+        "Vêtements",
+        "Robes"
+      ],
+      "catalogId": "574",
+      "categoryTitle": "Robes",
+      "discoveredAt": "2026-07-06T22:52:12.075Z",
+      "fieldOrder": [
+        "category",
+        "brand",
+        "condition",
+        "material",
+        "colors",
+        "size",
+        "title",
+        "description",
+        "price"
+      ],
+      "fields": {
+        "brand": {
+          "detectedLabel": "Marque",
+          "displayText": "Marque",
+          "domIdPrefixes": [
+            "suggested-brand-",
+            "brand-"
+          ],
+          "id": "brand",
+          "label": "Marque",
+          "labelAliases": [
+            "Brand"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#brand, input[name*='brand']",
+            "container": "div",
+            "primary": "input#brand"
+          },
+          "widget": "brandSearch"
+        },
+        "category": {
+          "detectedLabel": "Catégorie",
+          "displayText": "Catégorie",
+          "domIdPrefixes": [
+            "catalog-"
+          ],
+          "id": "category",
+          "label": "Catégorie",
+          "labelAliases": [
+            "Categorie",
+            "Category"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": "input#catalog, input[name*='catalog']",
+            "container": "div",
+            "primary": "input#category"
+          },
+          "widget": "categorySearch"
+        },
+        "colors": {
+          "detectedLabel": "Couleur",
+          "displayText": "Couleur",
+          "domIdPrefixes": [
+            "suggested-color-",
+            "color-"
+          ],
+          "id": "colors",
+          "label": "Couleur",
+          "labelAliases": [
+            "Color",
+            "Colors",
+            "Colour",
+            "Colours"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#color, input[name*='color']",
+            "container": "div",
+            "primary": "input#color"
+          },
+          "widget": "multiSelect"
+        },
+        "condition": {
+          "detectedLabel": "État",
+          "displayText": "État",
+          "domIdPrefixes": [
+            "condition-"
+          ],
+          "id": "condition",
+          "label": "État",
+          "labelAliases": [
+            "Etat",
+            "Condition",
+            "État de l'article",
+            "Etat de l'article",
+            "État de l'objet"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#status, input[name*='status']",
+            "container": "div",
+            "primary": "input#condition"
+          },
+          "widget": "singleSelect"
+        },
+        "description": {
+          "detectedLabel": "Description",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "description",
+          "label": "Description",
+          "labelAliases": [
+            "Description"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "textarea#description"
+          },
+          "widget": "textInput"
+        },
+        "material": {
+          "detectedLabel": "Matériau",
+          "displayText": "Matériau (recommandé)",
+          "domIdPrefixes": [
+            "material-"
+          ],
+          "id": "material",
+          "label": "Matériau",
+          "labelAliases": [
+            "Matière",
+            "Matiere",
+            "Materiau",
+            "Material",
+            "Composition"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#material, input[name*='material']",
+            "container": "div",
+            "primary": "input#material"
+          },
+          "widget": "itemSelect"
+        },
+        "price": {
+          "detectedLabel": "Prix",
+          "displayText": "Vends ton article Photos Déposer les fichiers ici Ajoute des photos Présentation de ton article Titre Description Détails de l'article Catégorie Marque Taille État Couleur Matériau...",
+          "domIdPrefixes": [],
+          "id": "price",
+          "label": "Prix",
+          "labelAliases": [
+            "Price"
+          ],
+          "optionPreview": [
+            "Ajoute des photos",
+            "Catégorie",
+            "Marque",
+            "Taille",
+            "État",
+            "Couleur",
+            "Matériau (recommandé)",
+            "Voir les détails des dimensions et indemnisations",
+            "Donner un avis",
+            "Sauvegarder le brouillon",
+            "Ajouter"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#price"
+          },
+          "widget": "textInput"
+        },
+        "size": {
+          "detectedLabel": "Taille",
+          "displayText": "Taille",
+          "domIdPrefixes": [
+            "size-"
+          ],
+          "id": "size",
+          "label": "Taille",
+          "labelAliases": [
+            "Size",
+            "Pointure"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#size, input[name*='size']",
+            "container": "div",
+            "primary": "input#size"
+          },
+          "widget": "sizeSelect"
+        },
+        "title": {
+          "detectedLabel": "Titre",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "title",
+          "label": "Titre",
+          "labelAliases": [
+            "Title"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#title"
+          },
+          "widget": "textInput"
+        }
+      },
+      "fingerprint": {
+        "labels": [
+          "Catégorie",
+          "Marque",
+          "État",
+          "Matériau",
+          "Couleur",
+          "Taille",
+          "Titre",
+          "Description",
+          "Prix"
+        ],
+        "widgets": {
+          "brand": "brandSearch",
+          "category": "categorySearch",
+          "colors": "multiSelect",
+          "condition": "singleSelect",
+          "description": "textInput",
+          "material": "itemSelect",
+          "price": "textInput",
+          "size": "sizeSelect",
+          "title": "textInput"
+        }
+      },
+      "isComplete": true,
+      "locale": "fr-FR",
+      "schemaSource": "local-cache",
+      "selectionWarning": "Catégorie non validée (dropdownOpen=false, visible=—, committed=—, primary=—)",
+      "source": "dom-discovery",
+      "updatedAt": "2026-07-07T15:27:54.733Z",
+      "url": "https://www.vinted.fr/items/new",
+      "version": 1
+    },
+    "1940": {
+      "catalogBranchTitles": [
+        "Maison",
+        "Décoration",
+        "Vases"
+      ],
+      "catalogId": "1940",
+      "categoryTitle": "Vases",
+      "discoveredAt": "2026-07-06T22:54:03.072Z",
+      "fieldOrder": [
+        "category",
+        "brand",
+        "condition",
+        "material",
+        "colors",
+        "size",
+        "title",
+        "description",
+        "price"
+      ],
+      "fields": {
+        "brand": {
+          "detectedLabel": "Marque",
+          "displayText": "Marque",
+          "domIdPrefixes": [
+            "suggested-brand-",
+            "brand-"
+          ],
+          "id": "brand",
+          "label": "Marque",
+          "labelAliases": [
+            "Brand"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#brand, input[name*='brand']",
+            "container": "div",
+            "primary": "input#brand"
+          },
+          "widget": "brandSearch"
+        },
+        "category": {
+          "detectedLabel": "Catégorie",
+          "displayText": "Catégorie Vases Maison > Décoration Jeans évasés Femmes > Vêtements > Jeans",
+          "domIdPrefixes": [
+            "catalog-"
+          ],
+          "id": "category",
+          "label": "Catégorie",
+          "labelAliases": [
+            "Categorie",
+            "Category"
+          ],
+          "optionPreview": [
+            "VasesMaison > Décoration",
+            "Jeans évasésFemmes > Vêtements > Jeans"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": "input#catalog, input[name*='catalog']",
+            "container": "div",
+            "primary": "input#category"
+          },
+          "widget": "singleSelect"
+        },
+        "colors": {
+          "detectedLabel": "Couleur",
+          "displayText": "Couleur",
+          "domIdPrefixes": [
+            "suggested-color-",
+            "color-"
+          ],
+          "id": "colors",
+          "label": "Couleur",
+          "labelAliases": [
+            "Color",
+            "Colors",
+            "Colour",
+            "Colours"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#color, input[name*='color']",
+            "container": "div",
+            "primary": "input#color"
+          },
+          "widget": "multiSelect"
+        },
+        "condition": {
+          "detectedLabel": "État",
+          "displayText": "État",
+          "domIdPrefixes": [
+            "condition-"
+          ],
+          "id": "condition",
+          "label": "État",
+          "labelAliases": [
+            "Etat",
+            "Condition",
+            "État de l'article",
+            "Etat de l'article",
+            "État de l'objet"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#status, input[name*='status']",
+            "container": "div",
+            "primary": "input#condition"
+          },
+          "widget": "singleSelect"
+        },
+        "description": {
+          "detectedLabel": "Description",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "description",
+          "label": "Description",
+          "labelAliases": [
+            "Description"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "textarea#description"
+          },
+          "widget": "textInput"
+        },
+        "material": {
+          "detectedLabel": "Matériau",
+          "displayText": "Matériau (recommandé)",
+          "domIdPrefixes": [
+            "material-"
+          ],
+          "id": "material",
+          "label": "Matériau",
+          "labelAliases": [
+            "Matière",
+            "Matiere",
+            "Materiau",
+            "Material",
+            "Composition"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#material, input[name*='material']",
+            "container": "div",
+            "primary": "input#material"
+          },
+          "widget": "itemSelect"
+        },
+        "price": {
+          "detectedLabel": "Prix",
+          "displayText": "Vends ton article Photos Déposer les fichiers ici Ajoute des photos Présentation de ton article Titre Description Détails de l'article Catégorie Vases Maison > Décoration Jeans éva...",
+          "domIdPrefixes": [],
+          "id": "price",
+          "label": "Prix",
+          "labelAliases": [
+            "Price"
+          ],
+          "optionPreview": [
+            "Ajoute des photos",
+            "CatégorieVasesMaison > DécorationJeans évasésFemmes > Vêtements > Jeans",
+            "VasesMaison > Décoration",
+            "Jeans évasésFemmes > Vêtements > Jeans",
+            "Marque",
+            "Taille",
+            "État",
+            "Couleur",
+            "Matériau (recommandé)",
+            "Voir les détails des dimensions et indemnisations",
+            "Donner un avis",
+            "Sauvegarder le brouillon"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#price"
+          },
+          "widget": "textInput"
+        },
+        "size": {
+          "detectedLabel": "Taille",
+          "displayText": "Taille",
+          "domIdPrefixes": [
+            "size-"
+          ],
+          "id": "size",
+          "label": "Taille",
+          "labelAliases": [
+            "Size",
+            "Pointure"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#size, input[name*='size']",
+            "container": "div",
+            "primary": "input#size"
+          },
+          "widget": "sizeSelect"
+        },
+        "title": {
+          "detectedLabel": "Titre",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "title",
+          "label": "Titre",
+          "labelAliases": [
+            "Title"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#title"
+          },
+          "widget": "textInput"
+        }
+      },
+      "fingerprint": {
+        "labels": [
+          "Catégorie",
+          "Marque",
+          "État",
+          "Matériau",
+          "Couleur",
+          "Taille",
+          "Titre",
+          "Description",
+          "Prix"
+        ],
+        "widgets": {
+          "brand": "brandSearch",
+          "category": "singleSelect",
+          "colors": "multiSelect",
+          "condition": "singleSelect",
+          "description": "textInput",
+          "material": "itemSelect",
+          "price": "textInput",
+          "size": "sizeSelect",
+          "title": "textInput"
+        }
+      },
+      "isComplete": true,
+      "locale": "fr-FR",
+      "schemaSource": "local-cache",
+      "selectionWarning": "Catégorie non validée (dropdownOpen=false, visible=—, committed=—, primary=—)",
+      "source": "dom-discovery",
+      "updatedAt": "2026-07-07T15:28:21.723Z",
+      "url": "https://www.vinted.fr/items/new",
+      "version": 1
+    },
+    "2632": {
+      "catalogBranchTitles": [
+        "Femmes",
+        "Chaussures",
+        "Baskets"
+      ],
+      "catalogId": "2632",
+      "categoryTitle": "Baskets",
+      "discoveredAt": "2026-07-06T22:52:39.829Z",
+      "fieldOrder": [
+        "category",
+        "brand",
+        "condition",
+        "material",
+        "colors",
+        "size",
+        "title",
+        "description",
+        "price"
+      ],
+      "fields": {
+        "brand": {
+          "detectedLabel": "Marque",
+          "displayText": "Marque",
+          "domIdPrefixes": [
+            "suggested-brand-",
+            "brand-"
+          ],
+          "id": "brand",
+          "label": "Marque",
+          "labelAliases": [
+            "Brand"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#brand, input[name*='brand']",
+            "container": "div",
+            "primary": "input#brand"
+          },
+          "widget": "brandSearch"
+        },
+        "category": {
+          "detectedLabel": "Catégorie",
+          "displayText": "Catégorie Baskets Femmes > Chaussures Baskets Hommes > Chaussures Baskets à lacets Enfants > Vêtements pour garçons > Chaussures > Baskets Baskets à lacets Enfants > Vêtements pour...",
+          "domIdPrefixes": [
+            "catalog-"
+          ],
+          "id": "category",
+          "label": "Catégorie",
+          "labelAliases": [
+            "Categorie",
+            "Category"
+          ],
+          "optionPreview": [
+            "BasketsFemmes > Chaussures",
+            "BasketsHommes > Chaussures",
+            "Baskets à lacetsEnfants > Vêtements pour garçons > Chaussures > Baskets",
+            "Baskets à lacetsEnfants > Vêtements pour filles > Chaussures > Baskets",
+            "Baskets sans lacetsEnfants > Vêtements pour filles > Chaussures > Baskets",
+            "Baskets sans lacetsEnfants > Vêtements pour garçons > Chaussures > Baskets",
+            "Baskets à scratchEnfants > Vêtements pour filles > Chaussures > Baskets",
+            "Baskets à scratchEnfants > Vêtements pour garçons > Chaussures > Baskets",
+            "Chaussures de basketFemmes > Chaussures > Chaussures de sport",
+            "Chaussures de basketHommes > Chaussures > Chaussures de sport",
+            "Chaussures de basketEnfants > Vêtements pour garçons > Chaussures > Chaussures d...",
+            "Chaussures de basketEnfants > Vêtements pour filles > Chaussures > Chaussures de..."
+          ],
+          "required": true,
+          "selectors": {
+            "committed": "input#catalog, input[name*='catalog']",
+            "container": "div",
+            "primary": "input#category"
+          },
+          "widget": "singleSelect"
+        },
+        "colors": {
+          "detectedLabel": "Couleur",
+          "displayText": "Couleur",
+          "domIdPrefixes": [
+            "suggested-color-",
+            "color-"
+          ],
+          "id": "colors",
+          "label": "Couleur",
+          "labelAliases": [
+            "Color",
+            "Colors",
+            "Colour",
+            "Colours"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#color, input[name*='color']",
+            "container": "div",
+            "primary": "input#color"
+          },
+          "widget": "multiSelect"
+        },
+        "condition": {
+          "detectedLabel": "État",
+          "displayText": "État",
+          "domIdPrefixes": [
+            "condition-"
+          ],
+          "id": "condition",
+          "label": "État",
+          "labelAliases": [
+            "Etat",
+            "Condition",
+            "État de l'article",
+            "Etat de l'article",
+            "État de l'objet"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#status, input[name*='status']",
+            "container": "div",
+            "primary": "input#condition"
+          },
+          "widget": "singleSelect"
+        },
+        "description": {
+          "detectedLabel": "Description",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "description",
+          "label": "Description",
+          "labelAliases": [
+            "Description"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "textarea#description"
+          },
+          "widget": "textInput"
+        },
+        "material": {
+          "detectedLabel": "Matériau",
+          "displayText": "Matériau (recommandé)",
+          "domIdPrefixes": [
+            "material-"
+          ],
+          "id": "material",
+          "label": "Matériau",
+          "labelAliases": [
+            "Matière",
+            "Matiere",
+            "Materiau",
+            "Material",
+            "Composition"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#material, input[name*='material']",
+            "container": "div",
+            "primary": "input#material"
+          },
+          "widget": "itemSelect"
+        },
+        "price": {
+          "detectedLabel": "Prix",
+          "displayText": "Vends ton article Photos Déposer les fichiers ici Ajoute des photos Présentation de ton article Titre Description Détails de l'article Catégorie Baskets Femmes > Chaussures Baskets...",
+          "domIdPrefixes": [],
+          "id": "price",
+          "label": "Prix",
+          "labelAliases": [
+            "Price"
+          ],
+          "optionPreview": [
+            "Ajoute des photos",
+            "CatégorieBasketsFemmes > ChaussuresBasketsHommes > ChaussuresBaskets à lacetsEnf...",
+            "BasketsFemmes > Chaussures",
+            "BasketsHommes > Chaussures",
+            "Baskets à lacetsEnfants > Vêtements pour garçons > Chaussures > Baskets",
+            "Baskets à lacetsEnfants > Vêtements pour filles > Chaussures > Baskets",
+            "Baskets sans lacetsEnfants > Vêtements pour filles > Chaussures > Baskets",
+            "Baskets sans lacetsEnfants > Vêtements pour garçons > Chaussures > Baskets",
+            "Baskets à scratchEnfants > Vêtements pour filles > Chaussures > Baskets",
+            "Baskets à scratchEnfants > Vêtements pour garçons > Chaussures > Baskets",
+            "Chaussures de basketFemmes > Chaussures > Chaussures de sport",
+            "Chaussures de basketHommes > Chaussures > Chaussures de sport"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#price"
+          },
+          "widget": "textInput"
+        },
+        "size": {
+          "detectedLabel": "Taille",
+          "displayText": "Taille",
+          "domIdPrefixes": [
+            "size-"
+          ],
+          "id": "size",
+          "label": "Taille",
+          "labelAliases": [
+            "Size",
+            "Pointure"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#size, input[name*='size']",
+            "container": "div",
+            "primary": "input#size"
+          },
+          "widget": "sizeSelect"
+        },
+        "title": {
+          "detectedLabel": "Titre",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "title",
+          "label": "Titre",
+          "labelAliases": [
+            "Title"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#title"
+          },
+          "widget": "textInput"
+        }
+      },
+      "fingerprint": {
+        "labels": [
+          "Catégorie",
+          "Marque",
+          "État",
+          "Matériau",
+          "Couleur",
+          "Taille",
+          "Titre",
+          "Description",
+          "Prix"
+        ],
+        "widgets": {
+          "brand": "brandSearch",
+          "category": "singleSelect",
+          "colors": "multiSelect",
+          "condition": "singleSelect",
+          "description": "textInput",
+          "material": "itemSelect",
+          "price": "textInput",
+          "size": "sizeSelect",
+          "title": "textInput"
+        }
+      },
+      "isComplete": true,
+      "locale": "fr-FR",
+      "schemaSource": "local-cache",
+      "selectionWarning": "Catégorie non validée (dropdownOpen=false, visible=—, committed=—, primary=—)",
+      "source": "dom-discovery",
+      "updatedAt": "2026-07-07T15:28:01.756Z",
+      "url": "https://www.vinted.fr/items/new",
+      "version": 1
+    },
+    "3345": {
+      "catalogBranchTitles": [
+        "Enfants",
+        "Jeux et jouets",
+        "Activités et jouets pour bébé",
+        "Jouets de bain"
+      ],
+      "catalogId": "3345",
+      "categoryTitle": "Jouets de bain",
+      "discoveredAt": "2026-07-06T22:53:35.414Z",
+      "fieldOrder": [
+        "category",
+        "brand",
+        "condition",
+        "material",
+        "colors",
+        "size",
+        "title",
+        "description",
+        "price"
+      ],
+      "fields": {
+        "brand": {
+          "detectedLabel": "Marque",
+          "displayText": "Marque",
+          "domIdPrefixes": [
+            "suggested-brand-",
+            "brand-"
+          ],
+          "id": "brand",
+          "label": "Marque",
+          "labelAliases": [
+            "Brand"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#brand, input[name*='brand']",
+            "container": "div",
+            "primary": "input#brand"
+          },
+          "widget": "brandSearch"
+        },
+        "category": {
+          "detectedLabel": "Catégorie",
+          "displayText": "Catégorie Jouets de bain Enfants > Jeux et jouets > Activités et jouets pour bébé Jouets de piscine Sport > Sports nautiques > Natation Jouets de dentition Enfants > Jeux et jouets...",
+          "domIdPrefixes": [
+            "catalog-"
+          ],
+          "id": "category",
+          "label": "Catégorie",
+          "labelAliases": [
+            "Categorie",
+            "Category"
+          ],
+          "optionPreview": [
+            "Jouets de bainEnfants > Jeux et jouets > Activités et jouets pour bébé",
+            "Jouets de piscineSport > Sports nautiques > Natation",
+            "Jouets de dentitionEnfants > Jeux et jouets > Activités et jouets pour bébé",
+            "JouetsMaison > Animaux > Rongeurs & co",
+            "JouetsMaison > Animaux > Oiseaux",
+            "Jouets solides & résistantsMaison > Animaux > Chiens > Jouets",
+            "Jouets souplesMaison > Animaux > Chiens > Jouets",
+            "Jouets souplesMaison > Animaux > Chats > Jouets",
+            "Jouets télécommandésEnfants > Jeux et jouets > Jeux et jouets électroniques",
+            "Serviettes de bainEnfants > Bain et change > Bain",
+            "Accessoires de bainEnfants > Bain et change > Bain",
+            "Maillots de bainHommes > Vêtements"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": "input#catalog, input[name*='catalog']",
+            "container": "div",
+            "primary": "input#category"
+          },
+          "widget": "singleSelect"
+        },
+        "colors": {
+          "detectedLabel": "Couleur",
+          "displayText": "Couleur",
+          "domIdPrefixes": [
+            "suggested-color-",
+            "color-"
+          ],
+          "id": "colors",
+          "label": "Couleur",
+          "labelAliases": [
+            "Color",
+            "Colors",
+            "Colour",
+            "Colours"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#color, input[name*='color']",
+            "container": "div",
+            "primary": "input#color"
+          },
+          "widget": "multiSelect"
+        },
+        "condition": {
+          "detectedLabel": "État",
+          "displayText": "État",
+          "domIdPrefixes": [
+            "condition-"
+          ],
+          "id": "condition",
+          "label": "État",
+          "labelAliases": [
+            "Etat",
+            "Condition",
+            "État de l'article",
+            "Etat de l'article",
+            "État de l'objet"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#status, input[name*='status']",
+            "container": "div",
+            "primary": "input#condition"
+          },
+          "widget": "singleSelect"
+        },
+        "description": {
+          "detectedLabel": "Description",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "description",
+          "label": "Description",
+          "labelAliases": [
+            "Description"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "textarea#description"
+          },
+          "widget": "textInput"
+        },
+        "material": {
+          "detectedLabel": "Matériau",
+          "displayText": "Matériau (recommandé)",
+          "domIdPrefixes": [
+            "material-"
+          ],
+          "id": "material",
+          "label": "Matériau",
+          "labelAliases": [
+            "Matière",
+            "Matiere",
+            "Materiau",
+            "Material",
+            "Composition"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#material, input[name*='material']",
+            "container": "div",
+            "primary": "input#material"
+          },
+          "widget": "itemSelect"
+        },
+        "price": {
+          "detectedLabel": "Prix",
+          "displayText": "Vends ton article Photos Déposer les fichiers ici Ajoute des photos Présentation de ton article Titre Description Détails de l'article Catégorie Jouets de bain Enfants > Jeux et jo...",
+          "domIdPrefixes": [],
+          "id": "price",
+          "label": "Prix",
+          "labelAliases": [
+            "Price"
+          ],
+          "optionPreview": [
+            "Ajoute des photos",
+            "CatégorieJouets de bainEnfants > Jeux et jouets > Activités et jouets pour bébéJ...",
+            "Jouets de bainEnfants > Jeux et jouets > Activités et jouets pour bébé",
+            "Jouets de piscineSport > Sports nautiques > Natation",
+            "Jouets de dentitionEnfants > Jeux et jouets > Activités et jouets pour bébé",
+            "JouetsMaison > Animaux > Rongeurs & co",
+            "JouetsMaison > Animaux > Oiseaux",
+            "Jouets solides & résistantsMaison > Animaux > Chiens > Jouets",
+            "Jouets souplesMaison > Animaux > Chiens > Jouets",
+            "Jouets souplesMaison > Animaux > Chats > Jouets",
+            "Jouets télécommandésEnfants > Jeux et jouets > Jeux et jouets électroniques",
+            "Serviettes de bainEnfants > Bain et change > Bain"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#price"
+          },
+          "widget": "textInput"
+        },
+        "size": {
+          "detectedLabel": "Taille",
+          "displayText": "Taille",
+          "domIdPrefixes": [
+            "size-"
+          ],
+          "id": "size",
+          "label": "Taille",
+          "labelAliases": [
+            "Size",
+            "Pointure"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#size, input[name*='size']",
+            "container": "div",
+            "primary": "input#size"
+          },
+          "widget": "sizeSelect"
+        },
+        "title": {
+          "detectedLabel": "Titre",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "title",
+          "label": "Titre",
+          "labelAliases": [
+            "Title"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#title"
+          },
+          "widget": "textInput"
+        }
+      },
+      "fingerprint": {
+        "labels": [
+          "Catégorie",
+          "Marque",
+          "État",
+          "Matériau",
+          "Couleur",
+          "Taille",
+          "Titre",
+          "Description",
+          "Prix"
+        ],
+        "widgets": {
+          "brand": "brandSearch",
+          "category": "singleSelect",
+          "colors": "multiSelect",
+          "condition": "singleSelect",
+          "description": "textInput",
+          "material": "itemSelect",
+          "price": "textInput",
+          "size": "sizeSelect",
+          "title": "textInput"
+        }
+      },
+      "isComplete": true,
+      "locale": "fr-FR",
+      "schemaSource": "local-cache",
+      "selectionWarning": "Catégorie non validée (dropdownOpen=false, visible=—, committed=—, primary=—)",
+      "source": "dom-discovery",
+      "updatedAt": "2026-07-07T15:28:14.790Z",
+      "url": "https://www.vinted.fr/items/new",
+      "version": 1
+    },
+    "3661": {
+      "catalogBranchTitles": [
+        "Électronique",
+        "Téléphones portables et équipements de communication",
+        "Téléphones portables"
+      ],
+      "catalogId": "3661",
+      "categoryTitle": "Téléphones portables",
+      "discoveredAt": "2026-07-06T22:54:30.669Z",
+      "fieldOrder": [
+        "category",
+        "brand",
+        "condition",
+        "material",
+        "colors",
+        "size",
+        "title",
+        "description",
+        "price"
+      ],
+      "fields": {
+        "brand": {
+          "detectedLabel": "Marque",
+          "displayText": "Marque",
+          "domIdPrefixes": [
+            "suggested-brand-",
+            "brand-"
+          ],
+          "id": "brand",
+          "label": "Marque",
+          "labelAliases": [
+            "Brand"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#brand, input[name*='brand']",
+            "container": "div",
+            "primary": "input#brand"
+          },
+          "widget": "brandSearch"
+        },
+        "category": {
+          "detectedLabel": "Catégorie",
+          "displayText": "Catégorie Téléphones portables Électronique > Téléphones portables et équipements de communication Téléphones portables factices Électronique > Téléphones portables et équipements ...",
+          "domIdPrefixes": [
+            "catalog-"
+          ],
+          "id": "category",
+          "label": "Catégorie",
+          "labelAliases": [
+            "Categorie",
+            "Category"
+          ],
+          "optionPreview": [
+            "Téléphones portablesÉlectronique > Téléphones portables et équipements de commun...",
+            "Téléphones portables facticesÉlectronique > Téléphones portables et équipements ...",
+            "Coques pour téléphones portablesÉlectronique > Téléphones portables et équipemen...",
+            "Poignées pour téléphones portablesÉlectronique > Téléphones portables et équipem...",
+            "Charms pour téléphones portablesÉlectronique > Téléphones portables et équipemen...",
+            "Supports pour téléphones portablesÉlectronique > Téléphones portables et équipem...",
+            "Protections d'écran pour téléphones portablesÉlectronique > Téléphones portables...",
+            "Pièces de rechange pour téléphones portablesÉlectronique > Téléphones portables ...",
+            "Lampes à selfie et ring lights pour téléphones portablesÉlectronique > Téléphone...",
+            "Téléphones fixesÉlectronique > Téléphones portables et équipements de communicat...",
+            "Autres accessoires de téléphonie mobileÉlectronique > Téléphones portables et éq...",
+            "Radios portablesÉlectronique > Audio, casques et hi-fi"
+          ],
+          "required": true,
+          "selectors": {
+            "committed": "input#catalog, input[name*='catalog']",
+            "container": "div",
+            "primary": "input#category"
+          },
+          "widget": "singleSelect"
+        },
+        "colors": {
+          "detectedLabel": "Couleur",
+          "displayText": "Couleur",
+          "domIdPrefixes": [
+            "suggested-color-",
+            "color-"
+          ],
+          "id": "colors",
+          "label": "Couleur",
+          "labelAliases": [
+            "Color",
+            "Colors",
+            "Colour",
+            "Colours"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#color, input[name*='color']",
+            "container": "div",
+            "primary": "input#color"
+          },
+          "widget": "multiSelect"
+        },
+        "condition": {
+          "detectedLabel": "État",
+          "displayText": "État",
+          "domIdPrefixes": [
+            "condition-"
+          ],
+          "id": "condition",
+          "label": "État",
+          "labelAliases": [
+            "Etat",
+            "Condition",
+            "État de l'article",
+            "Etat de l'article",
+            "État de l'objet"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#status, input[name*='status']",
+            "container": "div",
+            "primary": "input#condition"
+          },
+          "widget": "singleSelect"
+        },
+        "description": {
+          "detectedLabel": "Description",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "description",
+          "label": "Description",
+          "labelAliases": [
+            "Description"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "textarea#description"
+          },
+          "widget": "textInput"
+        },
+        "material": {
+          "detectedLabel": "Matériau",
+          "displayText": "Matériau (recommandé)",
+          "domIdPrefixes": [
+            "material-"
+          ],
+          "id": "material",
+          "label": "Matériau",
+          "labelAliases": [
+            "Matière",
+            "Matiere",
+            "Materiau",
+            "Material",
+            "Composition"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#material, input[name*='material']",
+            "container": "div",
+            "primary": "input#material"
+          },
+          "widget": "itemSelect"
+        },
+        "price": {
+          "detectedLabel": "Prix",
+          "displayText": "Vends ton article Photos Déposer les fichiers ici Ajoute des photos Présentation de ton article Titre Description Détails de l'article Catégorie Téléphones portables Électronique >...",
+          "domIdPrefixes": [],
+          "id": "price",
+          "label": "Prix",
+          "labelAliases": [
+            "Price"
+          ],
+          "optionPreview": [
+            "Ajoute des photos",
+            "CatégorieTéléphones portablesÉlectronique > Téléphones portables et équipements ...",
+            "Téléphones portablesÉlectronique > Téléphones portables et équipements de commun...",
+            "Téléphones portables facticesÉlectronique > Téléphones portables et équipements ...",
+            "Coques pour téléphones portablesÉlectronique > Téléphones portables et équipemen...",
+            "Poignées pour téléphones portablesÉlectronique > Téléphones portables et équipem...",
+            "Charms pour téléphones portablesÉlectronique > Téléphones portables et équipemen...",
+            "Supports pour téléphones portablesÉlectronique > Téléphones portables et équipem...",
+            "Protections d'écran pour téléphones portablesÉlectronique > Téléphones portables...",
+            "Pièces de rechange pour téléphones portablesÉlectronique > Téléphones portables ...",
+            "Lampes à selfie et ring lights pour téléphones portablesÉlectronique > Téléphone...",
+            "Téléphones fixesÉlectronique > Téléphones portables et équipements de communicat..."
+          ],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#price"
+          },
+          "widget": "textInput"
+        },
+        "size": {
+          "detectedLabel": "Taille",
+          "displayText": "Taille",
+          "domIdPrefixes": [
+            "size-"
+          ],
+          "id": "size",
+          "label": "Taille",
+          "labelAliases": [
+            "Size",
+            "Pointure"
+          ],
+          "optionPreview": [],
+          "required": false,
+          "selectors": {
+            "committed": "input#size, input[name*='size']",
+            "container": "div",
+            "primary": "input#size"
+          },
+          "widget": "sizeSelect"
+        },
+        "title": {
+          "detectedLabel": "Titre",
+          "displayText": "Titre Description",
+          "domIdPrefixes": [],
+          "id": "title",
+          "label": "Titre",
+          "labelAliases": [
+            "Title"
+          ],
+          "optionPreview": [],
+          "required": true,
+          "selectors": {
+            "committed": null,
+            "container": "div",
+            "primary": "input#title"
+          },
+          "widget": "textInput"
+        }
+      },
+      "fingerprint": {
+        "labels": [
+          "Catégorie",
+          "Marque",
+          "État",
+          "Matériau",
+          "Couleur",
+          "Taille",
+          "Titre",
+          "Description",
+          "Prix"
+        ],
+        "widgets": {
+          "brand": "brandSearch",
+          "category": "singleSelect",
+          "colors": "multiSelect",
+          "condition": "singleSelect",
+          "description": "textInput",
+          "material": "itemSelect",
+          "price": "textInput",
+          "size": "sizeSelect",
+          "title": "textInput"
+        }
+      },
+      "isComplete": true,
+      "locale": "fr-FR",
+      "schemaSource": "local-cache",
+      "selectionWarning": "Catégorie non validée (dropdownOpen=false, visible=—, committed=—, primary=—)",
+      "source": "dom-discovery",
+      "updatedAt": "2026-07-07T15:28:27.767Z",
+      "url": "https://www.vinted.fr/items/new",
+      "version": 1
+    }
+  }
+}

@@ -1,13 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Vinted Republisher PRO",
-  "version": "2.0.0",
+  "version": "2.2.13",
   "permissions": [
     "activeTab",
     "storage",
     "unlimitedStorage",
     "scripting",
     "webNavigation",
+    "webRequest",
     "notifications"
   ],
   "host_permissions": [
@@ -21,13 +22,13 @@
   "content_scripts": [
     {
       "matches": ["https://*.vinted.fr/*", "https://*.vinted.com/*"],
-      "js": ["image-processor.js", "content.js"],
+      "js": ["image-processor.js", "vinted-field-matrix.js", "vinted-schema-store.js", "vinted-schema-discovery.js", "vinted-form-engine.js", "vinted-schema-crawler.js", "content.js"],
       "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["automation-engine-fresh.js"],
+      "resources": ["automation-engine-fresh.js", "vinted-field-matrix.js", "vinted-schema-store.js", "vinted-schema-discovery.js", "vinted-form-engine.js", "vinted-schema-crawler.js", "vinted-form-schemas.generated.json"],
       "matches": ["https://*.vinted.fr/*", "https://*.vinted.com/*"]
     }
   ],
