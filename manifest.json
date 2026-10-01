@@ -1,7 +1,14 @@
 {
   "manifest_version": 3,
-  "name": "Vinted Republisher PRO",
-  "version": "2.2.13",
+  "name": "Vinted Auto Republisher PRO",
+  "version": "2.2.14",
+  "description": "Automatisation sécurisée, republication et sauvegarde locale des annonces Vinted",
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
   "permissions": [
     "activeTab",
     "storage",
@@ -22,17 +29,40 @@
   "content_scripts": [
     {
       "matches": ["https://*.vinted.fr/*", "https://*.vinted.com/*"],
-      "js": ["image-processor.js", "vinted-field-matrix.js", "vinted-schema-store.js", "vinted-schema-discovery.js", "vinted-form-engine.js", "vinted-schema-crawler.js", "content.js"],
+      "js": [
+        "image-processor.js",
+        "vinted-field-matrix.js",
+        "vinted-schema-store.js",
+        "vinted-schema-discovery.js",
+        "vinted-form-engine.js",
+        "vinted-schema-crawler.js",
+        "content.js"
+      ],
       "run_at": "document_end"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["automation-engine-fresh.js", "vinted-field-matrix.js", "vinted-schema-store.js", "vinted-schema-discovery.js", "vinted-form-engine.js", "vinted-schema-crawler.js", "vinted-form-schemas.generated.json"],
+      "resources": [
+        "automation-engine-fresh.js",
+        "vinted-field-matrix.js",
+        "vinted-schema-store.js",
+        "vinted-schema-discovery.js",
+        "vinted-form-engine.js",
+        "vinted-schema-crawler.js",
+        "vinted-form-schemas.generated.json"
+      ],
       "matches": ["https://*.vinted.fr/*", "https://*.vinted.com/*"]
     }
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_title": "Vinted Auto Republisher PRO",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   }
 }
