@@ -160,6 +160,7 @@ function setupEventListeners() {
     setupTabNavigation();
     setupVaultListeners();
     setupBackupImportUi();
+    setupPhotoStudioListeners();
 }
 
 function setupBackupImportUi() {
@@ -1320,7 +1321,10 @@ function renderVaultCards(itemsToRender) {
                 </div>
                 <div class="vault-card-actions">
                     <button class="btn btn-sm btn-primary vault-prefill-btn" data-id="${item.itemId}" type="button" title="Ouvrir la page Vinted et pré-remplir automatiquement">
-                        ⚡ Pré-remplir l'annonce
+                        ⚡ Pré-remplir
+                    </button>
+                    <button class="btn btn-sm btn-ghost vault-photos-btn" data-id="${item.itemId}" type="button" title="Studio Retouche Photo Anti-Flag">
+                        🎨 Photos
                     </button>
                     <button class="btn btn-sm btn-ghost vault-copy-btn" data-id="${item.itemId}" type="button" title="Copier le texte et les caractéristiques">
                         📋 Copier
@@ -1339,6 +1343,9 @@ function renderVaultCards(itemsToRender) {
     // Attach card event listeners
     container.querySelectorAll('.vault-prefill-btn').forEach(btn => {
         btn.addEventListener('click', () => handleVaultPrefill(btn.dataset.id));
+    });
+    container.querySelectorAll('.vault-photos-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleOpenPhotoStudio(btn.dataset.id));
     });
     container.querySelectorAll('.vault-copy-btn').forEach(btn => {
         btn.addEventListener('click', () => handleVaultCopy(btn.dataset.id, btn));
@@ -1629,6 +1636,458 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+/* ==========================================================================
+   STUDIO PHOTO ANTI-FLAG (Retouche Canvas & Anti-Doublon Vinted)
+   ========================================================================== */
+
+let studioState = {
+    itemId: null,
+    backup: null,
+    photos: [],
+    currentIndex: 0,
+    cachedImage: null,
+    showingOriginal: false,
+    debounceTimer: null,
+};
+
+function setupPhotoStudioListeners() {
+    const modal = document.getElementById('photoStudioModal');
+    const closeBtn = document.getElementById('studioCloseBtn');
+    const toggleCompareBtn = document.getElementById('studioToggleCompareBtn');
+    const cropRange = document.getElementById('studioCropRange');
+    const rotRange = document.getElementById('studioRotRange');
+    const brightRange = document.getElementById('studioBrightRange');
+    const noiseToggle = document.getElementById('studioNoiseToggle');
+    const saveAllBtn = document.getElementById('studioSaveAllBtn');
+    const downloadAllBtn = document.getElementById('studioDownloadAllBtn');
+
+    if (!modal) return;
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.hidden = true;
+        });
+    }
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.hidden = true;
+        }
+    });
+
+    if (cropRange) {
+        cropRange.addEventListener('input', () => {
+            const valEl = document.getElementById('studioCropVal');
+            if (valEl) valEl.textContent = `${cropRange.value}%`;
+            triggerStudioDebounced();
+        });
+    }
+
+    if (rotRange) {
+        rotRange.addEventListener('input', () => {
+            const valEl = document.getElementById('studioRotVal');
+            const v = Number(rotRange.value);
+            if (valEl) valEl.textContent = `${v > 0 ? '+' : ''}${v.toFixed(1)}°`;
+            triggerStudioDebounced();
+        });
+    }
+
+    if (brightRange) {
+        brightRange.addEventListener('input', () => {
+            const valEl = document.getElementById('studioBrightVal');
+            const v = Number(brightRange.value);
+            if (valEl) valEl.textContent = `${v > 0 ? '+' : ''}${v}%`;
+            triggerStudioDebounced();
+        });
+    }
+
+    if (noiseToggle) {
+        noiseToggle.addEventListener('change', () => {
+            triggerStudioDebounced();
+        });
+    }
+
+    if (toggleCompareBtn) {
+        toggleCompareBtn.addEventListener('click', () => {
+            studioState.showingOriginal = !studioState.showingOriginal;
+            updateStudioCompareTag();
+            renderStudioActivePhoto();
+        });
+    }
+
+    if (saveAllBtn) {
+        saveAllBtn.addEventListener('click', handleStudioSaveAll);
+    }
+
+    if (downloadAllBtn) {
+        downloadAllBtn.addEventListener('click', handleStudioDownloadAll);
+    }
+}
+
+function triggerStudioDebounced() {
+    if (studioState.showingOriginal) {
+        studioState.showingOriginal = false;
+        updateStudioCompareTag();
+    }
+    if (studioState.debounceTimer) clearTimeout(studioState.debounceTimer);
+    studioState.debounceTimer = setTimeout(() => {
+        renderStudioActivePhoto();
+    }, 40);
+}
+
+function updateStudioCompareTag() {
+    const tag = document.getElementById('studioCompareTag');
+    if (!tag) return;
+    if (studioState.showingOriginal) {
+        tag.textContent = 'Photo originale (non modifiée)';
+        tag.classList.add('original');
+    } else {
+        tag.textContent = 'Photo modifiée (Anti-doublon)';
+        tag.classList.remove('original');
+    }
+}
+
+async function handleOpenPhotoStudio(itemId) {
+    try {
+        addLog('info', `Ouverture du Studio Photo pour l'annonce #${itemId}...`);
+        let backup = null;
+        try {
+            const response = await chrome.runtime.sendMessage({
+                action: 'getVaultItemDetails',
+                itemId,
+            });
+            backup = response?.backup;
+        } catch (_) {}
+        if (!backup) {
+            const key = `vinted_republish_backup_${itemId}`;
+            const res = await chrome.storage.local.get(key);
+            backup = res[key];
+        }
+
+        if (!backup || !backup.item) {
+            throw new Error('Données de l\'annonce introuvables');
+        }
+
+        const photos = Array.isArray(backup.item.photos) && backup.item.photos.length > 0
+            ? backup.item.photos
+            : (Array.isArray(backup.item.photoUrls) ? backup.item.photoUrls : []);
+
+        if (!photos || photos.length === 0) {
+            addLog('warning', 'Aucune photo enregistrée pour cette annonce.');
+            alert('Aucune photo enregistrée pour cette annonce dans le coffre-fort.');
+            return;
+        }
+
+        studioState.itemId = itemId;
+        studioState.backup = backup;
+        studioState.photos = photos;
+        studioState.currentIndex = 0;
+        studioState.showingOriginal = false;
+        studioState.cachedImage = null;
+
+        const titleEl = document.getElementById('studioItemTitle');
+        if (titleEl) titleEl.textContent = backup.item.title || `Annonce #${itemId}`;
+
+        updateStudioCompareTag();
+        renderStudioFilmstrip();
+        await loadAndRenderStudioIndex(0);
+
+        const modal = document.getElementById('photoStudioModal');
+        if (modal) modal.hidden = false;
+        addLog('success', `Studio Photo prêt avec ${photos.length} photo(s).`);
+    } catch (err) {
+        addLog('error', 'Erreur ouverture Studio: ' + err.message);
+    }
+}
+
+function renderStudioFilmstrip() {
+    const filmstrip = document.getElementById('studioFilmstrip');
+    if (!filmstrip) return;
+    filmstrip.innerHTML = '';
+
+    studioState.photos.forEach((src, idx) => {
+        const thumb = document.createElement('img');
+        thumb.src = src;
+        thumb.className = `studio-thumb ${idx === studioState.currentIndex ? 'active' : ''}`;
+        thumb.title = `Photo ${idx + 1}`;
+        thumb.addEventListener('click', async () => {
+            if (idx === studioState.currentIndex) return;
+            filmstrip.querySelectorAll('.studio-thumb').forEach((el, i) => {
+                el.classList.toggle('active', i === idx);
+            });
+            await loadAndRenderStudioIndex(idx);
+        });
+        filmstrip.appendChild(thumb);
+    });
+}
+
+async function loadAndRenderStudioIndex(idx) {
+    studioState.currentIndex = idx;
+    const counter = document.getElementById('studioPhotoCounter');
+    if (counter) {
+        counter.textContent = `Photo ${idx + 1} / ${studioState.photos.length}`;
+    }
+
+    const filmstrip = document.getElementById('studioFilmstrip');
+    if (filmstrip) {
+        filmstrip.querySelectorAll('.studio-thumb').forEach((el, i) => {
+            el.classList.toggle('active', i === idx);
+        });
+    }
+
+    const processor = window.ImageProcessor ? new window.ImageProcessor() : null;
+    if (!processor) {
+        addLog('error', 'ImageProcessor non initialisé.');
+        return;
+    }
+
+    try {
+        const currentSrc = studioState.photos[idx];
+        studioState.cachedImage = await processor.loadImage(currentSrc);
+        renderStudioActivePhoto();
+    } catch (err) {
+        addLog('error', 'Erreur chargement photo: ' + err.message);
+    }
+}
+
+function renderStudioActivePhoto() {
+    const canvas = document.getElementById('studioCanvas');
+    const image = studioState.cachedImage;
+    if (!canvas || !image) return;
+
+    if (studioState.showingOriginal) {
+        canvas.width = image.width;
+        canvas.height = image.height;
+        const ctx = canvas.getContext('2d');
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(image, 0, 0);
+        return;
+    }
+
+    const cropRange = document.getElementById('studioCropRange');
+    const rotRange = document.getElementById('studioRotRange');
+    const brightRange = document.getElementById('studioBrightRange');
+    const noiseToggle = document.getElementById('studioNoiseToggle');
+
+    const crop = cropRange ? Number(cropRange.value) : 4;
+    const rot = rotRange ? Number(rotRange.value) : 0.6;
+    const bright = brightRange ? Number(brightRange.value) : 0;
+    const noise = noiseToggle ? noiseToggle.checked : true;
+
+    const processor = window.ImageProcessor ? new window.ImageProcessor() : null;
+    if (!processor) return;
+
+    let processed = image;
+    if (crop > 0) {
+        processed = processor.cropImage(processed, crop);
+    }
+    if (rot !== 0) {
+        processed = processor.rotateImage(processed, rot);
+    }
+
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = processed.width;
+    tmpCanvas.height = processed.height;
+    const tctx = tmpCanvas.getContext('2d');
+    if (bright !== 0) {
+        tctx.filter = `brightness(${1 + bright / 100})`;
+    }
+    tctx.drawImage(processed, 0, 0);
+    tctx.filter = 'none';
+
+    let finalCanvas = tmpCanvas;
+    if (noise) {
+        finalCanvas = processor.addSubtleNoise(tmpCanvas, {
+            strength: 5 + (studioState.currentIndex % 3),
+            brightness: 0.008,
+        });
+    }
+
+    canvas.width = finalCanvas.width;
+    canvas.height = finalCanvas.height;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(finalCanvas, 0, 0);
+}
+
+async function handleStudioSaveAll() {
+    const saveBtn = document.getElementById('studioSaveAllBtn');
+    const originalText = saveBtn ? saveBtn.innerHTML : '';
+    try {
+        if (!studioState.photos || !studioState.photos.length) return;
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.innerHTML = `⏳ Traitement de ${studioState.photos.length} photo(s)...`;
+        }
+
+        const cropRange = document.getElementById('studioCropRange');
+        const rotRange = document.getElementById('studioRotRange');
+        const brightRange = document.getElementById('studioBrightRange');
+        const noiseToggle = document.getElementById('studioNoiseToggle');
+
+        const crop = cropRange ? Number(cropRange.value) : 4;
+        const rot = rotRange ? Number(rotRange.value) : 0.6;
+        const bright = brightRange ? Number(brightRange.value) : 0;
+        const noise = noiseToggle ? noiseToggle.checked : true;
+
+        const processor = window.ImageProcessor ? new window.ImageProcessor() : null;
+        if (!processor) throw new Error('ImageProcessor non disponible');
+
+        addLog('info', `Application des modifications anti-doublon sur ${studioState.photos.length} photo(s)...`);
+        const modifiedPhotos = [];
+
+        for (let i = 0; i < studioState.photos.length; i++) {
+            const rawSrc = studioState.photos[i];
+            const img = await processor.loadImage(rawSrc);
+
+            let proc = img;
+            // Variance par index pour unicité maximale entre les photos de l'annonce
+            const actualCrop = Math.max(1, crop + (i % 3) * 0.3);
+            const actualRot = rot + ((i % 2 === 0 ? 1 : -1) * (0.1 + (i % 3) * 0.05));
+
+            if (actualCrop > 0) proc = processor.cropImage(proc, actualCrop);
+            if (actualRot !== 0) proc = processor.rotateImage(proc, actualRot);
+
+            const c = document.createElement('canvas');
+            c.width = proc.width;
+            c.height = proc.height;
+            const ctx = c.getContext('2d');
+            if (bright !== 0) {
+                ctx.filter = `brightness(${1 + bright / 100})`;
+            }
+            ctx.drawImage(proc, 0, 0);
+            ctx.filter = 'none';
+
+            let finalCanvas = c;
+            if (noise) {
+                finalCanvas = processor.addSubtleNoise(c, {
+                    strength: 5 + (i % 3),
+                    brightness: 0.008,
+                });
+            }
+
+            const base64 = processor.canvasToBase64(finalCanvas, 0.92);
+            modifiedPhotos.push(base64);
+        }
+
+        // Sauvegarder dans le backup local
+        const backup = studioState.backup;
+        backup.item.photos = modifiedPhotos;
+        backup.item.thumbnail = modifiedPhotos[0];
+        backup.item.photosModifiedAntiFlag = true;
+        backup.item.photoCount = modifiedPhotos.length;
+
+        const storageKey = `vinted_republish_backup_${studioState.itemId}`;
+        await chrome.storage.local.set({ [storageKey]: backup });
+
+        // Mettre à jour l'index
+        const indexRes = await chrome.storage.local.get('vinted_republish_backup_index_v1');
+        const index = Array.isArray(indexRes.vinted_republish_backup_index_v1)
+            ? indexRes.vinted_republish_backup_index_v1
+            : [];
+        const entry = index.find(e => String(e.itemId) === String(studioState.itemId));
+        if (entry) {
+            entry.thumbnail = modifiedPhotos[0];
+            entry.photoCount = modifiedPhotos.length;
+            await chrome.storage.local.set({ vinted_republish_backup_index_v1: index });
+        }
+
+        studioState.photos = modifiedPhotos;
+        renderStudioFilmstrip();
+        await loadAndRenderStudioIndex(studioState.currentIndex);
+        await refreshVaultList();
+
+        addLog('success', `✅ ${modifiedPhotos.length} photo(s) anti-flag enregistrées dans le coffre-fort !`);
+        if (saveBtn) {
+            saveBtn.innerHTML = '✅ Modifications enregistrées !';
+            setTimeout(() => {
+                saveBtn.disabled = false;
+                saveBtn.innerHTML = originalText;
+            }, 2000);
+        }
+    } catch (err) {
+        addLog('error', 'Erreur sauvegarde photos: ' + err.message);
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = originalText;
+        }
+    }
+}
+
+async function handleStudioDownloadAll() {
+    const btn = document.getElementById('studioDownloadAllBtn');
+    const originalText = btn ? btn.textContent : '';
+    try {
+        if (!studioState.photos || !studioState.photos.length) return;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = '⏳ Téléchargement...';
+        }
+
+        const cropRange = document.getElementById('studioCropRange');
+        const rotRange = document.getElementById('studioRotRange');
+        const brightRange = document.getElementById('studioBrightRange');
+        const noiseToggle = document.getElementById('studioNoiseToggle');
+
+        const crop = cropRange ? Number(cropRange.value) : 4;
+        const rot = rotRange ? Number(rotRange.value) : 0.6;
+        const bright = brightRange ? Number(brightRange.value) : 0;
+        const noise = noiseToggle ? noiseToggle.checked : true;
+
+        const processor = window.ImageProcessor ? new window.ImageProcessor() : null;
+        if (!processor) throw new Error('ImageProcessor non disponible');
+
+        const cleanTitle = (studioState.backup?.item?.title || 'vinted-photo')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .slice(0, 30);
+
+        for (let i = 0; i < studioState.photos.length; i++) {
+            const rawSrc = studioState.photos[i];
+            const img = await processor.loadImage(rawSrc);
+
+            let proc = img;
+            const actualCrop = Math.max(1, crop + (i % 3) * 0.3);
+            const actualRot = rot + ((i % 2 === 0 ? 1 : -1) * (0.1 + (i % 3) * 0.05));
+
+            if (actualCrop > 0) proc = processor.cropImage(proc, actualCrop);
+            if (actualRot !== 0) proc = processor.rotateImage(proc, actualRot);
+
+            const c = document.createElement('canvas');
+            c.width = proc.width;
+            c.height = proc.height;
+            const ctx = c.getContext('2d');
+            if (bright !== 0) ctx.filter = `brightness(${1 + bright / 100})`;
+            ctx.drawImage(proc, 0, 0);
+            ctx.filter = 'none';
+
+            let finalCanvas = c;
+            if (noise) {
+                finalCanvas = processor.addSubtleNoise(c, {
+                    strength: 5 + (i % 3),
+                    brightness: 0.008,
+                });
+            }
+
+            const base64 = processor.canvasToBase64(finalCanvas, 0.92);
+            const a = document.createElement('a');
+            a.href = base64;
+            a.download = `${cleanTitle}-antiflag-${i + 1}.jpg`;
+            a.click();
+            await new Promise(r => setTimeout(r, 200));
+        }
+
+        addLog('success', `✅ ${studioState.photos.length} photo(s) retouchées téléchargées en JPEG !`);
+    } catch (err) {
+        addLog('error', 'Erreur téléchargement photos: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalText;
+        }
+    }
 }
 
 console.log('[Popup PRO] 🎯 Popup professionnel initialisé');

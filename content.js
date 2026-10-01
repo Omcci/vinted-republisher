@@ -4189,7 +4189,7 @@ async function continuePendingDomDraftIfNeeded() {
 
   const engineResult = await window.vintedRunFormMatrixAutomation(draft, { strict: false });
   const failed = (engineResult.fieldResults || []).filter(
-    (r) => !r.success && !r.skipped && !r.canContinue && !(r.isSensitive && r.canContinue)
+    (r) => !r.success && !r.skipped && !r.canContinue && !(r.isSensitive && r.canContinue) && r.required !== false && r.fieldId !== "colors"
   );
 
   // Price is critical: re-apply after engine (category remount) then hard-check.
@@ -4901,32 +4901,65 @@ function findGlobalFieldInput(labelText) {
 }
 
 function findSuggestionButtonInContainer(container, value) {
-  if (!container) return null;
+  if (!container && typeof document === "undefined") return null;
   const expected = String(value || "").trim();
-  const collectButtons = (root) =>
-    Array.from(root.querySelectorAll("button, [role='button'], [id^='suggested-'], [id^='catalog-'], [id^='condition-'], [id^='color-'], [id^='material-'], [id^='size-'], [id^='brand-']"))
-      .filter((el) => {
-        if (!el || !el.isConnected) return false;
-        const rect = el.getBoundingClientRect?.();
-        if (rect && (rect.width < 2 || rect.height < 2)) return false;
-        const txt = (el.textContent || "").trim();
-        if (!txt) return false;
-        const low = txt.toLowerCase();
-        if (low.includes("copier logs") || low.includes("copier backup")) return false;
-        if ((el.className || "").toString().includes("c-input__icon")) return false;
-        return true;
-      });
+  const expectedNorm = normalizeComparableText(expected);
+  if (!expectedNorm) return null;
 
-  const buttons = [
-    ...collectButtons(container),
-    ...collectButtons(document),
-  ]
-    .filter((el, idx, arr) => arr.indexOf(el) === idx);
+  // Synonyms and variations for Vinted colors
+  const synonyms = [expectedNorm];
+  if (expectedNorm === "beige") synonyms.push("creme", "ecru", "sable", "beige / creme");
+  if (expectedNorm === "rouge") synonyms.push("bordeaux", "corail", "pourpre", "framboise");
+  if (expectedNorm === "bleu") synonyms.push("marine", "azur", "turquoise", "bleu marine", "bleu ciel");
+  if (expectedNorm === "marron") synonyms.push("chocolat", "brun", "camel", "cognac", "noisette");
+  if (expectedNorm === "gris") synonyms.push("anthracite", "argent", "gris clair", "gris chine");
+  if (expectedNorm === "rose") synonyms.push("fuchsia", "saumon", "poudre", "rose pale");
+  if (expectedNorm === "vert") synonyms.push("kaki", "olive", "menthe", "vert d'eau", "sapin");
+  if (expectedNorm === "orange") synonyms.push("abricot", "peche", "rouille", "cuivre");
+  if (expectedNorm === "jaune") synonyms.push("moutarde", "dore", "or");
 
-  const exact = buttons.find((el) => textMatchesExpected(el.textContent || "", expected));
-  if (exact) return exact;
+  const collectCandidates = (root) => {
+    if (!root) return [];
+    return Array.from(
+      root.querySelectorAll(
+        "button, [role='button'], [role='checkbox'], [role='option'], [role='radio'], li, label, div[class*='option'], div[class*='FilterGrid'], div[class*='Cell'], div[class*='Item'], [id^='suggested-'], [id^='catalog-'], [id^='condition-'], [id^='color-'], [id^='material-'], [id^='size-'], [id^='brand-']"
+      )
+    ).filter((el) => {
+      if (!el || !el.isConnected) return false;
+      const rect = el.getBoundingClientRect?.();
+      if (rect && (rect.width < 2 || rect.height < 2)) return false;
+      const txt = (el.textContent || el.getAttribute("aria-label") || el.getAttribute("title") || "").trim();
+      if (!txt) return false;
+      const low = txt.toLowerCase();
+      if (low.includes("copier logs") || low.includes("copier backup")) return false;
+      if ((el.className || "").toString().includes("c-input__icon")) return false;
+      return true;
+    });
+  };
 
-  // Never click a random fallback for value-based fields.
+  const candidates = [
+    ...(container ? collectCandidates(container) : []),
+    ...(typeof document !== "undefined" ? collectCandidates(document) : []),
+  ].filter((el, idx, arr) => arr.indexOf(el) === idx);
+
+  // 1. Exact match on direct text or aria-label
+  for (const syn of synonyms) {
+    const exact = candidates.find((el) => {
+      const t = normalizeComparableText(el.textContent || el.getAttribute("aria-label") || el.getAttribute("title") || "");
+      return t === syn;
+    });
+    if (exact) return exact;
+  }
+
+  // 2. StartsWith or includes match
+  for (const syn of synonyms) {
+    const partial = candidates.find((el) => {
+      const t = normalizeComparableText(el.textContent || el.getAttribute("aria-label") || "");
+      return t.startsWith(syn) || t.includes(syn);
+    });
+    if (partial) return partial;
+  }
+
   return null;
 }
 

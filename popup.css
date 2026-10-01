@@ -1112,3 +1112,249 @@ input:checked + .slider:before {
   grid-template-columns: 1fr 1fr;
   gap: 6px;
 }
+
+/* ==========================================================================
+   Photo Studio Anti-Flag Modal & Controls
+   ========================================================================== */
+.studio-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  animation: fade-in 0.15s ease-out;
+}
+
+.studio-modal-card {
+  background: #ffffff;
+  border-radius: var(--radius-lg);
+  width: 100%;
+  max-height: 94vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 8px 10px -6px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+}
+
+.studio-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.studio-header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.studio-icon {
+  font-size: 20px;
+}
+
+.studio-header-title h3 {
+  font-size: 13.5px;
+  font-weight: 750;
+  color: var(--text-main);
+  line-height: 1.2;
+}
+
+.studio-subtitle {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  max-width: 280px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.studio-close-btn {
+  background: #f1f5f9;
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  transition: all var(--transition-fast);
+}
+
+.studio-close-btn:hover {
+  background: #e2e8f0;
+  color: var(--text-main);
+}
+
+.studio-shield-badge {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdfa 100%);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 6px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #065f46;
+  text-align: center;
+}
+
+.studio-preview-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: #0f172a;
+  border-radius: var(--radius-md);
+  padding: 10px;
+  align-items: center;
+}
+
+.studio-canvas-wrapper {
+  position: relative;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 160px;
+  max-height: 210px;
+  overflow: hidden;
+}
+
+#studioCanvas {
+  max-width: 100%;
+  max-height: 200px;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.studio-compare-tag {
+  position: absolute;
+  bottom: 6px;
+  left: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #38bdf8;
+  font-size: 9.5px;
+  font-weight: 650;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(2px);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.studio-preview-toolbar {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.studio-preview-toolbar .btn {
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  font-size: 10.5px;
+  padding: 4px 8px;
+}
+
+.studio-preview-toolbar .btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  color: #ffffff;
+}
+
+.studio-photo-counter {
+  font-size: 10.5px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+.studio-filmstrip {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  width: 100%;
+  padding-bottom: 2px;
+}
+
+.studio-thumb {
+  width: 42px;
+  height: 42px;
+  object-fit: cover;
+  border-radius: 5px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  opacity: 0.6;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.studio-thumb:hover {
+  opacity: 0.9;
+}
+
+.studio-thumb.active {
+  opacity: 1;
+  border-color: var(--vinted-teal);
+  box-shadow: 0 0 0 2px rgba(9, 177, 186, 0.4);
+}
+
+.studio-controls-card {
+  background: #f8fafc;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.studio-control-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.studio-control-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.studio-control-label strong {
+  color: var(--text-main);
+  font-weight: 650;
+}
+
+.studio-slider {
+  width: 100%;
+  height: 5px;
+  accent-color: var(--vinted-teal);
+  cursor: pointer;
+}
+
+.studio-actions-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.studio-secondary-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.studio-secondary-actions .btn {
+  flex: 1;
+}
+

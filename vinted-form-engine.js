@@ -1043,26 +1043,38 @@ async function adapterSingleSelect(spec, value, draft) {
  * @returns {{ success: boolean, reason?: string }}
  */
 async function adapterMultiSelect(spec, values) {
-  const normalized = Array.from(new Set((values || []).map((v) => String(v).trim()).filter(Boolean)));
-  if (normalized.length === 0) return { success: true };
+  // Support both array and delimited strings (e.g. "Beige/Rouge", "Beige, Rouge")
+  let rawList = [];
+  if (Array.isArray(values)) {
+    rawList = values;
+  } else if (typeof values === "string") {
+    rawList = values.split(/[\/,;+&]+/);
+  }
+  const normalized = Array.from(new Set(rawList.map((v) => String(v).trim()).filter(Boolean)));
+  if (normalized.length === 0) return { success: true, canContinue: true };
 
   const label = spec.label;
   const container = findFieldContainerByLabel(label);
   if (!container) {
-    return { success: false, reason: "Champ Couleur introuvable dans le DOM" };
+    return { success: false, canContinue: true, reason: "Champ Couleur introuvable dans le DOM" };
   }
 
   const activator = findFieldActivator(label, container);
   if (activator) {
     clickElementHard(activator);
-    await sleep(260);
+    await sleep(280);
     logDomDebug(label, "multiSelect opened", { activator: describeElement(activator) });
   }
 
   let successCount = 0;
   for (const color of normalized) {
-    const option = findSuggestionButtonInContainer(container, color)
-      || findSuggestionButtonInContainer(document.body, color);
+    const finder = typeof findSuggestionButtonInContainer === "function"
+      ? findSuggestionButtonInContainer
+      : (typeof window.findSuggestionButtonInContainer === "function" ? window.findSuggestionButtonInContainer : null);
+
+    const option = finder
+      ? (finder(container, color) || finder(document.body, color))
+      : null;
 
     if (!option) {
       logDomDebug(label, "multiSelect option not found", { color });
@@ -1075,13 +1087,14 @@ async function adapterMultiSelect(spec, values) {
       continue;
     }
 
-    clickElementHard(option);
-    await sleep(140);
-    let sel = isOptionSelected(option);
+    const clickTarget = option.querySelector?.("input[type='checkbox'], [role='checkbox'], button") || option;
+    clickElementHard(clickTarget);
+    await sleep(150);
+    let sel = isOptionSelected(option) || isOptionSelected(clickTarget) || (clickTarget.checked === true);
     if (!sel) {
       clickElementHard(option);
-      await sleep(140);
-      sel = isOptionSelected(option);
+      await sleep(150);
+      sel = isOptionSelected(option) || isOptionSelected(clickTarget) || (clickTarget.checked === true);
     }
     logDomDebug(label, "multiSelect clicked option", { color, selected: sel });
     if (sel) successCount++;
@@ -1090,13 +1103,15 @@ async function adapterMultiSelect(spec, values) {
   await closeOpenDropdown();
   await waitForDropdownClose(1200);
 
+  // Colors are optional: if not all could be checked, log reason and permit draft completion
   if (successCount < normalized.length) {
     return {
-      success: false,
-      reason: `Couleur: seulement ${successCount}/${normalized.length} couleurs sélectionnées`,
+      success: successCount > 0,
+      canContinue: true,
+      reason: `Couleur: ${successCount}/${normalized.length} couleurs sélectionnées`,
     };
   }
-  return { success: true };
+  return { success: true, canContinue: true };
 }
 
 /**
@@ -2054,7 +2069,16 @@ async function runFormMatrixAutomation(draft, options = {}) {
 
     appendOverlayLog("info", `Remplissage: ${spec.label} → ${Array.isArray(value) ? value.join("/") : value || "(vide)"}`);
     const result = await executeFieldAdapter(spec, value, draft);
-    fieldResults.push({ fieldId: spec.id, ...result });
+    const isRequired = Boolean(required || spec.required);
+    if (!result.success && !isRequired) {
+      result.canContinue = true;
+      appendOverlayLog("warning", `${spec.label}: ${result.reason || "Optionnel, non sélectionné"} (poursuite du brouillon)`);
+    } else if (result.success) {
+      appendOverlayLog("success", `${spec.label}: ${result.value || (Array.isArray(value) ? value.join(", ") : value)}`);
+    } else {
+      appendOverlayLog("error", `${spec.label}: ${result.reason || "Échec"}`);
+    }
+    fieldResults.push({ fieldId: spec.id, required: isRequired, ...result });
 
     if (spec.widget === "categorySearch" && result.success) {
       if (result.catalogId && !draft.catalogId) {

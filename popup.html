@@ -289,6 +289,89 @@
       </div>
     </div>
 
+    <!-- MODAL / ESPACE RETOUCHE PHOTO ANTI-FLAG -->
+    <div id="photoStudioModal" class="studio-modal-backdrop" hidden>
+      <div class="studio-modal-card">
+        <div class="studio-modal-header">
+          <div class="studio-header-title">
+            <span class="studio-icon">🎨</span>
+            <div>
+              <h3>Studio Photo Anti-Flag</h3>
+              <p id="studioItemTitle" class="studio-subtitle">Titre de l'annonce</p>
+            </div>
+          </div>
+          <button id="studioCloseBtn" class="studio-close-btn" type="button" title="Fermer">✕</button>
+        </div>
+
+        <div class="studio-shield-badge">
+          <span>🛡️ Protection Vinted active : Recadrage + Rotation + Bruit sub-pixel</span>
+        </div>
+
+        <!-- Zone d'aperçu d'image -->
+        <div class="studio-preview-box">
+          <div class="studio-canvas-wrapper">
+            <canvas id="studioCanvas"></canvas>
+            <div id="studioCompareTag" class="studio-compare-tag">Photo modifiée (Anti-doublon)</div>
+          </div>
+          <div class="studio-preview-toolbar">
+            <button id="studioToggleCompareBtn" class="btn btn-sm btn-ghost" type="button">
+              👁️ Basculer Originale / Modifiée
+            </button>
+            <span class="studio-photo-counter" id="studioPhotoCounter">Photo 1 / 1</span>
+          </div>
+          <!-- Pellicule miniatures -->
+          <div class="studio-filmstrip" id="studioFilmstrip"></div>
+        </div>
+
+        <!-- Paramètres de retouche interactifs -->
+        <div class="studio-controls-card">
+          <div class="studio-control-row">
+            <div class="studio-control-label">
+              <span>Recadrage</span>
+              <strong id="studioCropVal">4%</strong>
+            </div>
+            <input type="range" id="studioCropRange" min="1" max="10" step="1" value="4" class="studio-slider">
+          </div>
+
+          <div class="studio-control-row">
+            <div class="studio-control-label">
+              <span>Micro-rotation</span>
+              <strong id="studioRotVal">0.6°</strong>
+            </div>
+            <input type="range" id="studioRotRange" min="-1.5" max="1.5" step="0.1" value="0.6" class="studio-slider">
+          </div>
+
+          <div class="studio-control-row">
+            <div class="studio-control-label">
+              <span>Luminosité</span>
+              <strong id="studioBrightVal">0%</strong>
+            </div>
+            <input type="range" id="studioBrightRange" min="-5" max="5" step="1" value="0" class="studio-slider">
+          </div>
+
+          <div class="toggle-row" style="margin-top:6px;">
+            <span class="toggle-label" style="font-size:11px;">Micro-bruit sub-pixel anti-pHash</span>
+            <label class="switch-control">
+              <input type="checkbox" id="studioNoiseToggle" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <!-- Actions de sauvegarde -->
+        <div class="studio-actions-footer">
+          <button id="studioSaveAllBtn" class="btn btn-primary" type="button">
+            ⚡ Appliquer & Enregistrer au Coffre-fort
+          </button>
+          <div class="studio-secondary-actions">
+            <button id="studioDownloadAllBtn" class="btn btn-sm btn-ghost" type="button">
+              📥 Télécharger les photos retouchées (JPEGs)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Éléments cachés pour compatibilité rétroactive -->
     <div id="manualSteps" hidden>
       <button id="extractData" type="button"></button>
@@ -297,6 +380,7 @@
     </div>
   </div>
 
+  <script src="image-processor.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>
