@@ -70,27 +70,41 @@ async function checkCurrentPage() {
                 url: tab.url
             });
 
-            updateStatus('ready', 'Prêt à scanner les annonces');
-            scanButton.disabled = false;
+            // Détection contextuelle de la page
+            const isDraft = tab.url.includes('/items/new') || /\/items\/\d+\/edit/.test(tab.url);
+            const isItem = /\/items\/(\d+)/.test(tab.url) && !isDraft;
 
-            // Highlight save current item button if currently on a listing page
-            const isItem = /\/items\/(\d+)/.test(tab.url) && !tab.url.includes('/new') && !tab.url.includes('/edit');
-            const saveBtn = document.getElementById('saveCurrentPageVaultBtn');
-            if (saveBtn) {
-                if (isItem) {
-                    saveBtn.classList.remove('btn-secondary');
-                    saveBtn.classList.add('btn-primary');
-                    saveBtn.innerHTML = '📥 Sauvegarder cette annonce dans le Coffre-fort';
-                } else {
-                    saveBtn.classList.remove('btn-primary');
-                    saveBtn.classList.add('btn-secondary');
-                    saveBtn.innerHTML = '📥 Sauvegarder l\'annonce de la page active';
+            const draftCard = document.getElementById('draftContextCard');
+            const itemCard = document.getElementById('itemContextCard');
+
+            if (draftCard) draftCard.hidden = !isDraft;
+            if (itemCard) itemCard.hidden = !isItem;
+
+            if (isDraft) {
+                updateStatus('ready', 'Brouillon Vinted détecté');
+            } else if (isItem) {
+                updateStatus('ready', 'Annonce Vinted détectée');
+                const titleMatch = tab.title ? tab.title.split('|')[0].trim() : '';
+                const titleEl = document.getElementById('itemContextTitle');
+                if (titleEl && titleMatch) {
+                    titleEl.textContent = titleMatch;
                 }
+            } else if (tab.url.includes('/member/') || tab.url.includes('/dressing')) {
+                updateStatus('ready', 'Dressing Vinted détecté');
+            } else {
+                updateStatus('ready', 'Connecté à Vinted');
             }
+
+            if (scanButton) scanButton.disabled = false;
         } else {
             console.log('[Popup PRO] ❌ Page non-Vinted détectée:', tab.url);
-            updateStatus('error', 'Veuillez ouvrir une page Vinted');
-            scanButton.disabled = true;
+            updateStatus('error', 'Ouvrez Vinted pour utiliser l\'extension');
+            if (scanButton) scanButton.disabled = true;
+
+            const draftCard = document.getElementById('draftContextCard');
+            const itemCard = document.getElementById('itemContextCard');
+            if (draftCard) draftCard.hidden = true;
+            if (itemCard) itemCard.hidden = true;
         }
     } catch (error) {
         console.error('[Popup PRO] ❌ Erreur vérification page:', error);
@@ -114,6 +128,29 @@ function setupEventListeners() {
     }
     bindClickIfExists('finalizeCurrentDraft', handleFinalizeCurrentDraft);
     bindClickIfExists('publishCurrentDraft', handlePublishCurrentDraft);
+
+    // Toggle watermark input visibility
+    const watermarkCheckbox = document.getElementById('addWatermark');
+    const watermarkWrapper = document.getElementById('watermarkFieldWrapper');
+    if (watermarkCheckbox && watermarkWrapper) {
+        watermarkCheckbox.addEventListener('change', () => {
+            watermarkWrapper.style.display = watermarkCheckbox.checked ? 'block' : 'none';
+        });
+    }
+
+    // Toggle import drop zone
+    bindClickIfExists('importBackupTrigger', () => {
+        const zone = document.getElementById('importZoneWrapper');
+        if (zone) {
+            zone.style.display = zone.style.display === 'none' ? 'block' : 'none';
+        }
+    });
+
+    // Clear logs
+    bindClickIfExists('clearLogsBtn', () => {
+        if (logsContainer) logsContainer.innerHTML = '';
+        if (logs) logs.hidden = true;
+    });
 
     // Event listeners pour le mode manuel (optionnels selon la version du popup.html)
     bindClickIfExists('extractData', handleExtractData);
@@ -972,19 +1009,17 @@ function updateRepublishButton() {
     }
     if (republishText) {
         republishText.textContent = hasSelection
-            ? `2. Créer le brouillon (${currentState.selectedItems.length})`
-            : '2. Créer le brouillon';
+            ? `Lancer la republication (${currentState.selectedItems.length})`
+            : 'Lancer la republication';
     }
     if (hint) {
         hint.textContent = hasSelection
-            ? `${currentState.selectedItems.length} annonce(s) sélectionnée(s)${
+            ? `${currentState.selectedItems.length} annonce(s) sélectionnée(s) · ${
                 destructiveOn
-                  ? ' · delete/publish via confirmation overlay'
-                  : ' · mode safe'
-              }.`
-            : destructiveOn
-              ? 'Toggle ON — ouvre le brouillon Vinted puis « Finaliser le brouillon ouvert ».'
-              : 'Aucune annonce sélectionnée. Toggle OFF = mode safe uniquement.';
+                  ? 'remplacement complet (suppression + nouvelle annonce)'
+                  : 'mode sécurisé (brouillon vérifiable sans suppression)'
+              }`
+            : 'Cochez une ou plusieurs annonces ci-dessus.';
     }
 }
 
@@ -1444,7 +1479,7 @@ async function handleSaveSelectedToVault() {
     }
     addLog('info', `Archivage de ${currentState.selectedItems.length} annonce(s) dans le coffre-fort...`);
     try {
-        const selected = currentState.scannedItems.filter(item => currentState.selectedItems.includes(item.id));
+        const selected = currentState.selectedItems.map(i => currentState.scannedItems[i]).filter(Boolean);
         const response = await chrome.runtime.sendMessage({
             action: 'saveBatchToVault',
             items: selected,
@@ -1458,7 +1493,7 @@ async function handleSaveSelectedToVault() {
     } finally {
         if (btn) {
             btn.disabled = false;
-            btn.textContent = '💾 Sauvegarder sélection';
+            btn.textContent = '💾 Sauvegarder';
         }
     }
 }
