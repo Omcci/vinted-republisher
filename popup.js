@@ -1439,10 +1439,24 @@ async function handleSaveCurrentTabToVault() {
     }
     addLog('info', 'Sauvegarde de la page Vinted active dans le coffre-fort...');
     try {
-        const response = await chrome.runtime.sendMessage({
-            action: 'saveCurrentPageToVault',
-            options: { applyImageMods: true },
-        });
+        let response = null;
+        try {
+            response = await chrome.runtime.sendMessage({
+                action: 'saveCurrentPageToVault',
+                options: { applyImageMods: true },
+            });
+            if (response && response.error && response.error.includes('Action inconnue')) {
+                throw new Error(response.error);
+            }
+        } catch (bgErr) {
+            console.warn('[Popup] Fallback direct sur content script:', bgErr);
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) throw bgErr;
+            response = await chrome.tabs.sendMessage(tab.id, {
+                action: 'SAVE_CURRENT_PAGE_TO_VAULT',
+                options: { applyImageMods: true },
+            });
+        }
         if (!response || !response.success) {
             throw new Error(response?.error || 'Échec extraction page');
         }
@@ -1452,7 +1466,7 @@ async function handleSaveCurrentTabToVault() {
         setTimeout(() => {
             if (btn) {
                 btn.disabled = false;
-                btn.textContent = '📥 Sauvegarder l\'annonce de la page active';
+                btn.textContent = '📥 Sauvegarder dans le Coffre-fort';
             }
         }, 2500);
     } catch (err) {
@@ -1460,8 +1474,10 @@ async function handleSaveCurrentTabToVault() {
         if (btn) {
             btn.textContent = '❌ ' + err.message.slice(0, 24);
             setTimeout(() => {
-                btn.disabled = false;
-                btn.textContent = '📥 Sauvegarder l\'annonce de la page active';
+                if (btn) {
+                    btn.disabled = false;
+                    btn.textContent = '📥 Sauvegarder dans le Coffre-fort';
+                }
             }, 3000);
         }
     }
@@ -1480,11 +1496,36 @@ async function handleSaveSelectedToVault() {
     addLog('info', `Archivage de ${currentState.selectedItems.length} annonce(s) dans le coffre-fort...`);
     try {
         const selected = currentState.selectedItems.map(i => currentState.scannedItems[i]).filter(Boolean);
-        const response = await chrome.runtime.sendMessage({
-            action: 'saveBatchToVault',
-            items: selected,
-            options: { applyImageMods: true },
-        });
+        let response = null;
+        try {
+            response = await chrome.runtime.sendMessage({
+                action: 'saveBatchToVault',
+                items: selected,
+                options: { applyImageMods: true },
+            });
+            if (response && response.error && response.error.includes('Action inconnue')) {
+                throw new Error(response.error);
+            }
+        } catch (bgErr) {
+            console.warn('[Popup] Fallback direct batch sur content script:', bgErr);
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab?.id) throw bgErr;
+            const results = [];
+            for (const it of selected) {
+                try {
+                    const res = await chrome.tabs.sendMessage(tab.id, {
+                        action: 'SAVE_LISTING_BY_ID_TO_VAULT',
+                        itemId: it.id || it.itemId,
+                        item: it,
+                        options: { applyImageMods: true },
+                    });
+                    results.push(res || { success: true });
+                } catch (e) {
+                    results.push({ success: false, error: e.message });
+                }
+            }
+            response = { success: true, results };
+        }
         const succeeded = (response?.results || []).filter(r => r.success).length;
         addLog('success', `✅ ${succeeded}/${selected.length} annonce(s) sauvegardée(s) dans le coffre-fort !`);
         await refreshVaultList();
