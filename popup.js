@@ -1195,7 +1195,7 @@ async function checkManualProcess() {
 let vaultItems = [];
 
 function setupTabNavigation() {
-    const tabs = document.querySelectorAll('.nav-tab');
+    const tabs = document.querySelectorAll('.tab-button, .nav-tab');
     tabs.forEach(tab => {
         tab.addEventListener('click', () => {
             const targetPanelId = tab.dataset.tab;
@@ -1206,8 +1206,27 @@ function setupTabNavigation() {
             document.querySelectorAll('.tab-panel').forEach(panel => {
                 panel.hidden = panel.id !== targetPanelId;
             });
+
+            // Masquer les bandeaux contextuels de l'onglet Republication quand on est dans le coffre-fort
+            const itemContextCard = document.getElementById('itemContextCard');
+            const draftContextCard = document.getElementById('draftContextCard');
             if (targetPanelId === 'panelVault') {
+                if (itemContextCard) {
+                    itemContextCard.dataset.shouldShow = !itemContextCard.hidden;
+                    itemContextCard.hidden = true;
+                }
+                if (draftContextCard) {
+                    draftContextCard.dataset.shouldShow = !draftContextCard.hidden;
+                    draftContextCard.hidden = true;
+                }
                 refreshVaultList();
+            } else {
+                if (itemContextCard && itemContextCard.dataset.shouldShow === 'true') {
+                    itemContextCard.hidden = false;
+                }
+                if (draftContextCard && draftContextCard.dataset.shouldShow === 'true') {
+                    draftContextCard.hidden = false;
+                }
             }
         });
     });
@@ -1228,8 +1247,22 @@ function setupVaultListeners() {
 
 async function refreshVaultList() {
     try {
-        const response = await chrome.runtime.sendMessage({ action: 'getVaultItems' });
-        vaultItems = Array.isArray(response?.items) ? response.items : [];
+        let items = null;
+        try {
+            const response = await chrome.runtime.sendMessage({ action: 'getVaultItems' });
+            if (response && Array.isArray(response.items)) {
+                items = response.items;
+            }
+        } catch (_) {}
+
+        if (!items) {
+            const stored = await chrome.storage.local.get('vinted_republish_backup_index_v1');
+            items = Array.isArray(stored.vinted_republish_backup_index_v1)
+                ? stored.vinted_republish_backup_index_v1
+                : [];
+        }
+
+        vaultItems = items;
         updateVaultCountBadges(vaultItems.length);
         renderVaultCards(vaultItems);
     } catch (error) {
@@ -1340,11 +1373,19 @@ async function handleVaultPrefill(itemId) {
 
 async function handleVaultCopy(itemId, btn) {
     try {
-        const response = await chrome.runtime.sendMessage({
-            action: 'getVaultItemDetails',
-            itemId,
-        });
-        const backup = response?.backup;
+        let backup = null;
+        try {
+            const response = await chrome.runtime.sendMessage({
+                action: 'getVaultItemDetails',
+                itemId,
+            });
+            backup = response?.backup;
+        } catch (_) {}
+        if (!backup) {
+            const key = `vinted_republish_backup_${itemId}`;
+            const res = await chrome.storage.local.get(key);
+            backup = res[key];
+        }
         if (!backup || !backup.item) {
             throw new Error('Données introuvables');
         }
@@ -1377,11 +1418,19 @@ async function handleVaultCopy(itemId, btn) {
 
 async function handleVaultDownload(itemId) {
     try {
-        const response = await chrome.runtime.sendMessage({
-            action: 'getVaultItemDetails',
-            itemId,
-        });
-        const backup = response?.backup;
+        let backup = null;
+        try {
+            const response = await chrome.runtime.sendMessage({
+                action: 'getVaultItemDetails',
+                itemId,
+            });
+            backup = response?.backup;
+        } catch (_) {}
+        if (!backup) {
+            const key = `vinted_republish_backup_${itemId}`;
+            const res = await chrome.storage.local.get(key);
+            backup = res[key];
+        }
         if (!backup) throw new Error('Données introuvables');
 
         const json = JSON.stringify(backup, null, 2);
@@ -1401,14 +1450,24 @@ async function handleVaultDownload(itemId) {
 async function handleVaultDelete(itemId) {
     if (!confirm(`Supprimer cette annonce (#${itemId}) du coffre-fort ?`)) return;
     try {
-        const response = await chrome.runtime.sendMessage({
-            action: 'deleteVaultItem',
-            itemId,
-        });
-        if (response?.success) {
-            addLog('info', `Annonce #${itemId} supprimée du coffre-fort`);
-            await refreshVaultList();
-        }
+        try {
+            await chrome.runtime.sendMessage({
+                action: 'deleteVaultItem',
+                itemId,
+            });
+        } catch (_) {}
+        const key = `vinted_republish_backup_${itemId}`;
+        await chrome.storage.local.remove(key);
+        const indexResult = await chrome.storage.local.get('vinted_republish_backup_index_v1');
+        const index = Array.isArray(indexResult.vinted_republish_backup_index_v1)
+            ? indexResult.vinted_republish_backup_index_v1
+            : [];
+        const nextIndex = index.filter(
+            (entry) => entry.storageKey !== key && String(entry.itemId) !== String(itemId)
+        );
+        await chrome.storage.local.set({ vinted_republish_backup_index_v1: nextIndex });
+        addLog('info', `Annonce #${itemId} supprimée du coffre-fort`);
+        await refreshVaultList();
     } catch (err) {
         addLog('error', 'Erreur suppression: ' + err.message);
     }
