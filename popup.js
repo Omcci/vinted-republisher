@@ -1749,38 +1749,145 @@ function updateStudioCompareTag() {
     }
 }
 
+function extractPhotosFromBackup(backup) {
+    if (!backup) return [];
+
+    const getUrl = (p) => {
+        if (!p) return null;
+        if (typeof p === 'string' && p.trim()) return p.trim();
+        if (typeof p === 'object') {
+            return p.dataUrl || p.sourceUrl || p.url || p.src || null;
+        }
+        return null;
+    };
+
+    // 1. Prepared photos (binary dataUrls prioritized)
+    if (Array.isArray(backup.photos?.prepared) && backup.photos.prepared.length > 0) {
+        const list = backup.photos.prepared.map(getUrl).filter(Boolean);
+        if (list.length) return list;
+    }
+
+    // 2. Originals photos (binary dataUrls)
+    if (Array.isArray(backup.photos?.originals) && backup.photos.originals.length > 0) {
+        const list = backup.photos.originals.map(getUrl).filter(Boolean);
+        if (list.length) return list;
+    }
+
+    // 3. backup.photos directly as array
+    if (Array.isArray(backup.photos) && backup.photos.length > 0) {
+        const list = backup.photos.map(getUrl).filter(Boolean);
+        if (list.length) return list;
+    }
+
+    // 4. backup.item?.photos
+    if (Array.isArray(backup.item?.photos) && backup.item.photos.length > 0) {
+        const list = backup.item.photos.map(getUrl).filter(Boolean);
+        if (list.length) return list;
+    }
+
+    // 5. backup.item?.imageUrls
+    if (Array.isArray(backup.item?.imageUrls) && backup.item.imageUrls.length > 0) {
+        const list = backup.item.imageUrls.map(getUrl).filter(Boolean);
+        if (list.length) return list;
+    }
+
+    // 6. backup.item?.photoUrls
+    if (Array.isArray(backup.item?.photoUrls) && backup.item.photoUrls.length > 0) {
+        const list = backup.item.photoUrls.map(getUrl).filter(Boolean);
+        if (list.length) return list;
+    }
+
+    // 7. backup.preparedFiles
+    if (Array.isArray(backup.preparedFiles) && backup.preparedFiles.length > 0) {
+        const list = backup.preparedFiles.map(getUrl).filter(Boolean);
+        if (list.length) return list;
+    }
+
+    // 8. Single thumbnail fallback
+    const singleThumb = getUrl(backup.item?.thumbnail) || getUrl(backup.thumbnail);
+    if (singleThumb) {
+        return [singleThumb];
+    }
+
+    return [];
+}
+
+async function urlToDataUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    if (url.startsWith('data:') || url.startsWith('blob:')) {
+        return url;
+    }
+    try {
+        const res = await fetch(url);
+        const blob = await res.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result);
+            reader.onerror = () => resolve(url);
+            reader.readAsDataURL(blob);
+        });
+    } catch (err) {
+        console.warn('[Popup] Échec conversion URL en dataUrl:', err);
+        return url;
+    }
+}
+
 async function handleOpenPhotoStudio(itemId) {
     try {
-        addLog('info', `Ouverture du Studio Photo pour l'annonce #${itemId}...`);
+        const cleanId = String(itemId || '').trim();
+        addLog('info', `Ouverture du Studio Photo pour l'annonce #${cleanId}...`);
+
         let backup = null;
         try {
             const response = await chrome.runtime.sendMessage({
                 action: 'getVaultItemDetails',
-                itemId,
+                itemId: cleanId,
             });
             backup = response?.backup;
         } catch (_) {}
+
         if (!backup) {
-            const key = `vinted_republish_backup_${itemId}`;
+            const key = `vinted_republish_backup_${cleanId}`;
             const res = await chrome.storage.local.get(key);
             backup = res[key];
         }
 
-        if (!backup || !backup.item) {
-            throw new Error('Données de l\'annonce introuvables');
+        if (!backup) {
+            const indexRes = await chrome.storage.local.get('vinted_republish_backup_index_v1');
+            const index = Array.isArray(indexRes.vinted_republish_backup_index_v1)
+                ? indexRes.vinted_republish_backup_index_v1
+                : [];
+            const entry = index.find(e => String(e.itemId).trim() === cleanId || String(e.storageKey).includes(cleanId));
+            if (entry && entry.storageKey) {
+                const res = await chrome.storage.local.get(entry.storageKey);
+                backup = res[entry.storageKey];
+            }
         }
 
-        const photos = Array.isArray(backup.item.photos) && backup.item.photos.length > 0
-            ? backup.item.photos
-            : (Array.isArray(backup.item.photoUrls) ? backup.item.photoUrls : []);
+        if (!backup) {
+            // Dernier recours : parcourir les clés locales
+            const allStorage = await chrome.storage.local.get(null);
+            for (const [k, val] of Object.entries(allStorage)) {
+                if (k.startsWith('vinted_republish_backup_') && (k.includes(cleanId) || String(val?.item?.itemId) === cleanId)) {
+                    backup = val;
+                    break;
+                }
+            }
+        }
+
+        if (!backup) {
+            throw new Error(`Annonce #${cleanId} introuvable dans le coffre-fort`);
+        }
+
+        const photos = extractPhotosFromBackup(backup);
 
         if (!photos || photos.length === 0) {
-            addLog('warning', 'Aucune photo enregistrée pour cette annonce.');
+            addLog('warning', `Aucune photo binaire exploitable pour l'annonce #${cleanId}.`);
             alert('Aucune photo enregistrée pour cette annonce dans le coffre-fort.');
             return;
         }
 
-        studioState.itemId = itemId;
+        studioState.itemId = cleanId;
         studioState.backup = backup;
         studioState.photos = photos;
         studioState.currentIndex = 0;
@@ -1788,7 +1895,7 @@ async function handleOpenPhotoStudio(itemId) {
         studioState.cachedImage = null;
 
         const titleEl = document.getElementById('studioItemTitle');
-        if (titleEl) titleEl.textContent = backup.item.title || `Annonce #${itemId}`;
+        if (titleEl) titleEl.textContent = backup.item?.title || `Annonce #${cleanId}`;
 
         updateStudioCompareTag();
         renderStudioFilmstrip();
@@ -1796,7 +1903,7 @@ async function handleOpenPhotoStudio(itemId) {
 
         const modal = document.getElementById('photoStudioModal');
         if (modal) modal.hidden = false;
-        addLog('success', `Studio Photo prêt avec ${photos.length} photo(s).`);
+        addLog('success', `Studio Photo prêt : ${photos.length} photo(s) chargée(s).`);
     } catch (err) {
         addLog('error', 'Erreur ouverture Studio: ' + err.message);
     }
@@ -1833,7 +1940,11 @@ async function loadAndRenderStudioIndex(idx) {
     const filmstrip = document.getElementById('studioFilmstrip');
     if (filmstrip) {
         filmstrip.querySelectorAll('.studio-thumb').forEach((el, i) => {
-            el.classList.toggle('active', i === idx);
+            const isActive = i === idx;
+            el.classList.toggle('active', isActive);
+            if (isActive) {
+                el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
         });
     }
 
@@ -1844,7 +1955,11 @@ async function loadAndRenderStudioIndex(idx) {
     }
 
     try {
-        const currentSrc = studioState.photos[idx];
+        let currentSrc = studioState.photos[idx];
+        if (currentSrc && !currentSrc.startsWith('data:') && !currentSrc.startsWith('blob:')) {
+            currentSrc = await urlToDataUrl(currentSrc);
+            studioState.photos[idx] = currentSrc;
+        }
         studioState.cachedImage = await processor.loadImage(currentSrc);
         renderStudioActivePhoto();
     } catch (err) {
@@ -1939,7 +2054,10 @@ async function handleStudioSaveAll() {
         const modifiedPhotos = [];
 
         for (let i = 0; i < studioState.photos.length; i++) {
-            const rawSrc = studioState.photos[i];
+            let rawSrc = studioState.photos[i];
+            if (rawSrc && !rawSrc.startsWith('data:') && !rawSrc.startsWith('blob:')) {
+                rawSrc = await urlToDataUrl(rawSrc);
+            }
             const img = await processor.loadImage(rawSrc);
 
             let proc = img;
@@ -1974,10 +2092,37 @@ async function handleStudioSaveAll() {
 
         // Sauvegarder dans le backup local
         const backup = studioState.backup;
+        if (!backup.photos) {
+            backup.photos = {};
+        }
+
+        const preparedArray = modifiedPhotos.map((dataUrl, idx) => ({
+            index: idx,
+            name: `vinted_mod_${studioState.itemId}_${idx}.jpg`,
+            type: 'image/jpeg',
+            dataUrl: dataUrl,
+            size: Math.round(String(dataUrl || '').length * 0.75),
+        }));
+
+        backup.photos.prepared = preparedArray;
+        backup.photos.preparedCount = preparedArray.length;
+        if (!Array.isArray(backup.photos.originals) || !backup.photos.originals.length) {
+            backup.photos.originals = preparedArray;
+            backup.photos.originalCount = preparedArray.length;
+        }
+
+        if (!backup.item) backup.item = {};
         backup.item.photos = modifiedPhotos;
         backup.item.thumbnail = modifiedPhotos[0];
         backup.item.photosModifiedAntiFlag = true;
         backup.item.photoCount = modifiedPhotos.length;
+
+        backup.preparedFiles = preparedArray.map(f => ({
+            name: f.name,
+            type: f.type,
+            size: f.size,
+            hasDataUrl: true,
+        }));
 
         const storageKey = `vinted_republish_backup_${studioState.itemId}`;
         await chrome.storage.local.set({ [storageKey]: backup });
@@ -1987,7 +2132,7 @@ async function handleStudioSaveAll() {
         const index = Array.isArray(indexRes.vinted_republish_backup_index_v1)
             ? indexRes.vinted_republish_backup_index_v1
             : [];
-        const entry = index.find(e => String(e.itemId) === String(studioState.itemId));
+        const entry = index.find(e => String(e.itemId) === String(studioState.itemId) || e.storageKey === storageKey);
         if (entry) {
             entry.thumbnail = modifiedPhotos[0];
             entry.photoCount = modifiedPhotos.length;
@@ -2045,7 +2190,10 @@ async function handleStudioDownloadAll() {
             .slice(0, 30);
 
         for (let i = 0; i < studioState.photos.length; i++) {
-            const rawSrc = studioState.photos[i];
+            let rawSrc = studioState.photos[i];
+            if (rawSrc && !rawSrc.startsWith('data:') && !rawSrc.startsWith('blob:')) {
+                rawSrc = await urlToDataUrl(rawSrc);
+            }
             const img = await processor.loadImage(rawSrc);
 
             let proc = img;
