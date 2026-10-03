@@ -502,6 +502,27 @@ async function persistImportedBackupAndOpenDraft(backup, settings = {}) {
   if (!item.itemId) item.itemId = String(backup.backupId || "").split("_")[0] || `import_${Date.now()}`;
   item.category = String(item.category || "").replace(/^[A-Z]{2,5}\s+/, "").trim() || item.category;
 
+  if (settings.variations?.title) {
+    item.title = settings.variations.title;
+  }
+  if (settings.variations?.description) {
+    item.description = settings.variations.description;
+  }
+
+  let draftFiles = photos.map((file, index) => ({
+    name: file.name || `vinted_restore_${index}.jpg`,
+    type: file.type || "image/jpeg",
+    dataUrl: file.dataUrl,
+  }));
+
+  if (Array.isArray(settings.variations?.photos) && settings.variations.photos.length > 0) {
+    draftFiles = settings.variations.photos.map((p, index) => ({
+      name: `vinted_var_${index}.jpg`,
+      type: "image/jpeg",
+      dataUrl: typeof p === "string" ? p : (p?.dataUrl || p?.sourceUrl || ""),
+    })).filter(f => f.dataUrl);
+  }
+
   const storageKey = `${REPUBLISH_BACKUP_PREFIX}${item.itemId}`;
   const nextBackup = {
     ...backup,
@@ -513,13 +534,9 @@ async function persistImportedBackupAndOpenDraft(backup, settings = {}) {
       originalCount: Array.isArray(backup.photos?.originals)
         ? backup.photos.originals.filter((p) => p?.dataUrl).length
         : 0,
-      preparedCount: photos.length,
+      preparedCount: draftFiles.length,
       originals: Array.isArray(backup.photos?.originals) ? backup.photos.originals : [],
-      prepared:
-        Array.isArray(backup.photos?.prepared) &&
-        backup.photos.prepared.some((p) => p?.dataUrl)
-          ? backup.photos.prepared
-          : photos,
+      prepared: draftFiles,
     },
     lifecycle: {
       ...(backup.lifecycle || {}),
@@ -536,12 +553,6 @@ async function persistImportedBackupAndOpenDraft(backup, settings = {}) {
       reason: "Imported backup — destructive actions require fresh confirm",
     },
   };
-
-  const draftFiles = photos.map((file, index) => ({
-    name: file.name || `vinted_restore_${index}.jpg`,
-    type: file.type || "image/jpeg",
-    dataUrl: file.dataUrl,
-  }));
 
   await chrome.storage.local.set({
     [storageKey]: nextBackup,

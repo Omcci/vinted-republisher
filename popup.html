@@ -321,6 +321,19 @@
           </div>
           <!-- Pellicule miniatures -->
           <div class="studio-filmstrip" id="studioFilmstrip"></div>
+
+          <!-- Barre d'outils réorganisation de couverture & preset -->
+          <div class="studio-reorder-toolbar">
+            <button id="studioSetCoverBtn" class="btn btn-sm btn-ghost" type="button" title="Placer la photo sélectionnée en couverture (1ère photo)">
+              ⭐ Mettre en Couverture
+            </button>
+            <button id="studioSwap12Btn" class="btn btn-sm btn-ghost" type="button" title="Échanger la 1ère et la 2ème photo">
+              🔄 Permuter Photo 1 & 2
+            </button>
+            <button id="studioPresetBtn" class="btn btn-sm btn-ghost studio-preset-btn" type="button" title="Appliquer le preset anti-flag recommandé (+5% recadrage, +2% luminosité, rotation)">
+              🛡️ Preset Anti-Flag (+5%)
+            </button>
+          </div>
         </div>
 
         <!-- Paramètres de retouche interactifs -->
@@ -366,6 +379,105 @@
           <div class="studio-secondary-actions">
             <button id="studioDownloadAllBtn" class="btn btn-sm btn-ghost" type="button">
               📥 Télécharger les photos retouchées (JPEGs)
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MODAL / BOUCLIER ANTI-DOUBLON (REPUBLICATION ANTI-FLAG) -->
+    <div id="antiDuplicateModal" class="studio-modal-backdrop" hidden>
+      <div class="studio-modal-card anti-duplicate-card">
+        <div class="studio-modal-header">
+          <div class="studio-header-title">
+            <span class="studio-icon">🛡️</span>
+            <div>
+              <h3>Bouclier Anti-Doublon Vinted</h3>
+              <p id="antiDupItemSubtitle" class="studio-subtitle">Variations anti-shadowban avant republication</p>
+            </div>
+          </div>
+          <button id="antiDupCloseBtn" class="studio-close-btn" type="button" title="Fermer">✕</button>
+        </div>
+
+        <div class="studio-shield-badge">
+          <span>🛡️ Protection Vinted : Casse les 3 empreintes (Couverture + Titre + Description)</span>
+        </div>
+
+        <div class="anti-dup-body">
+          <!-- 1. PHOTOS & COUVERTURE -->
+          <div class="anti-dup-section">
+            <div class="anti-dup-section-header">
+              <span class="anti-dup-step-badge">1</span>
+              <div class="anti-dup-header-flex">
+                <h4>Photo de couverture (Anti-pHash)</h4>
+                <button type="button" id="antiDupSwapCoverBtn" class="btn-link">🔄 Mettre Photo 2 en couverture</button>
+              </div>
+            </div>
+            <div class="anti-dup-photos-row">
+              <div class="anti-dup-cover-preview">
+                <img id="antiDupCoverImg" src="" alt="Couverture" class="anti-dup-thumb-large" onerror="this.src='icons/icon48.png'">
+                <span class="anti-dup-cover-tag" id="antiDupCoverTag">Photo 1 (Originale)</span>
+              </div>
+              <div class="anti-dup-cover-controls">
+                <p class="anti-dup-hint">Vinted analyse surtout la 1ère photo. En mettant la 2e ou 3e photo en couverture, l'algorithme ne reconnaît plus l'annonce.</p>
+                <div class="anti-dup-checkboxes">
+                  <label class="anti-dup-checkbox-label">
+                    <input type="checkbox" id="antiDupSwapCoverCheck" checked>
+                    <span>Permuter la couverture (Photo 2 ➔ Couverture)</span>
+                  </label>
+                  <label class="anti-dup-checkbox-label">
+                    <input type="checkbox" id="antiDupAutoCropCheck" checked>
+                    <span>Micro-recadrage (+5%) & luminosité (+2%)</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. TITRE REFORMULÉ -->
+          <div class="anti-dup-section">
+            <div class="anti-dup-section-header">
+              <span class="anti-dup-step-badge">2</span>
+              <div class="anti-dup-header-flex">
+                <h4>Titre reformulé (Anti-doublon textuel)</h4>
+                <button type="button" id="antiDupCycleTitleBtn" class="btn-link" title="Générer une autre variante">🎲 Autre variante</button>
+              </div>
+            </div>
+            <div class="anti-dup-field-group">
+              <div class="anti-dup-original-box">
+                <span class="anti-dup-mini-label">Original :</span>
+                <span id="antiDupOriginalTitle" class="anti-dup-original-val">...</span>
+              </div>
+              <input type="text" id="antiDupNewTitle" class="form-input anti-dup-input" placeholder="Titre reformulé..." maxlength="100">
+            </div>
+          </div>
+
+          <!-- 3. DESCRIPTION STRUCTURÉE AVEC PUCES -->
+          <div class="anti-dup-section">
+            <div class="anti-dup-section-header">
+              <span class="anti-dup-step-badge">3</span>
+              <div class="anti-dup-header-flex">
+                <h4>Description aérée avec puces & accroche</h4>
+                <button type="button" id="antiDupCycleDescBtn" class="btn-link" title="Changer le style de description">🎲 Autre style</button>
+              </div>
+            </div>
+            <div class="anti-dup-field-group">
+              <textarea id="antiDupNewDesc" rows="5" class="form-input anti-dup-textarea" placeholder="Description reformulée avec puces..."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- ACTIONS FOOTER -->
+        <div class="studio-actions-footer">
+          <button id="antiDupLaunchBtn" class="btn btn-primary" type="button">
+            🚀 Pré-remplir sur Vinted avec ces variations
+          </button>
+          <div class="studio-secondary-actions">
+            <button id="antiDupSaveVaultBtn" class="btn btn-sm btn-ghost" type="button">
+              💾 Enregistrer au Coffre-fort
+            </button>
+            <button id="antiDupRawPrefillBtn" class="btn btn-sm btn-ghost" type="button" title="Pré-remplir sans variations">
+              ⚡ Pré-remplir tel quel
             </button>
           </div>
         </div>

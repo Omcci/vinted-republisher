@@ -161,6 +161,7 @@ function setupEventListeners() {
     setupVaultListeners();
     setupBackupImportUi();
     setupPhotoStudioListeners();
+    setupAntiDuplicateListeners();
 }
 
 function setupBackupImportUi() {
@@ -1320,11 +1321,14 @@ function renderVaultCards(itemsToRender) {
                     </div>
                 </div>
                 <div class="vault-card-actions">
-                    <button class="btn btn-sm btn-primary vault-prefill-btn" data-id="${item.itemId}" type="button" title="Ouvrir la page Vinted et pré-remplir automatiquement">
-                        ⚡ Pré-remplir
+                    <button class="btn btn-sm btn-primary vault-antidup-btn" data-id="${item.itemId}" type="button" title="Pré-remplir sur Vinted avec protection anti-doublon">
+                        🛡️ Varier & Pré-remplir
                     </button>
-                    <button class="btn btn-sm btn-ghost vault-photos-btn" data-id="${item.itemId}" type="button" title="Studio Retouche Photo Anti-Flag">
+                    <button class="btn btn-sm btn-ghost vault-photos-btn" data-id="${item.itemId}" type="button" title="Studio Retouche Photo & Couverture">
                         🎨 Photos
+                    </button>
+                    <button class="btn btn-sm btn-ghost vault-prefill-btn" data-id="${item.itemId}" type="button" title="Pré-remplir directement tel quel">
+                        ⚡ Direct
                     </button>
                     <button class="btn btn-sm btn-ghost vault-copy-btn" data-id="${item.itemId}" type="button" title="Copier le texte et les caractéristiques">
                         📋 Copier
@@ -1341,6 +1345,9 @@ function renderVaultCards(itemsToRender) {
     }).join('');
 
     // Attach card event listeners
+    container.querySelectorAll('.vault-antidup-btn').forEach(btn => {
+        btn.addEventListener('click', () => handleOpenAntiDuplicateModal(btn.dataset.id));
+    });
     container.querySelectorAll('.vault-prefill-btn').forEach(btn => {
         btn.addEventListener('click', () => handleVaultPrefill(btn.dataset.id));
     });
@@ -1723,6 +1730,66 @@ function setupPhotoStudioListeners() {
 
     if (downloadAllBtn) {
         downloadAllBtn.addEventListener('click', handleStudioDownloadAll);
+    }
+
+    const setCoverBtn = document.getElementById('studioSetCoverBtn');
+    if (setCoverBtn) {
+        setCoverBtn.addEventListener('click', () => {
+            if (!studioState.photos || studioState.photos.length <= 1) return;
+            const idx = studioState.currentIndex;
+            if (idx === 0) {
+                addLog('info', 'Cette photo est déjà la photo de couverture.');
+                return;
+            }
+            const [selected] = studioState.photos.splice(idx, 1);
+            studioState.photos.unshift(selected);
+            studioState.currentIndex = 0;
+            renderStudioFilmstrip();
+            loadAndRenderStudioIndex(0);
+            addLog('success', `Photo ${idx + 1} définie comme nouvelle couverture (position 1) !`);
+        });
+    }
+
+    const swap12Btn = document.getElementById('studioSwap12Btn');
+    if (swap12Btn) {
+        swap12Btn.addEventListener('click', () => {
+            if (!studioState.photos || studioState.photos.length < 2) {
+                addLog('warning', 'Il faut au moins 2 photos pour permuter.');
+                return;
+            }
+            const tmp = studioState.photos[0];
+            studioState.photos[0] = studioState.photos[1];
+            studioState.photos[1] = tmp;
+            studioState.currentIndex = 0;
+            renderStudioFilmstrip();
+            loadAndRenderStudioIndex(0);
+            addLog('success', 'Photos 1 et 2 permutées ! (Photo 2 en couverture)');
+        });
+    }
+
+    const presetBtn = document.getElementById('studioPresetBtn');
+    if (presetBtn) {
+        presetBtn.addEventListener('click', () => {
+            const cropRange = document.getElementById('studioCropRange');
+            const rotRange = document.getElementById('studioRotRange');
+            const brightRange = document.getElementById('studioBrightRange');
+            const noiseToggle = document.getElementById('studioNoiseToggle');
+
+            if (cropRange) cropRange.value = '5';
+            if (rotRange) rotRange.value = '0.7';
+            if (brightRange) brightRange.value = '2';
+            if (noiseToggle) noiseToggle.checked = true;
+
+            const cVal = document.getElementById('studioCropVal');
+            if (cVal) cVal.textContent = '5%';
+            const rVal = document.getElementById('studioRotVal');
+            if (rVal) rVal.textContent = '+0.7°';
+            const bVal = document.getElementById('studioBrightVal');
+            if (bVal) bVal.textContent = '+2%';
+
+            triggerStudioDebounced();
+            addLog('success', '🛡️ Preset Anti-Flag appliqué : Recadrage 5%, Rotation 0.7°, Luminosité +2%, Bruit sub-pixel.');
+        });
     }
 }
 
@@ -2234,6 +2301,525 @@ async function handleStudioDownloadAll() {
         if (btn) {
             btn.disabled = false;
             btn.textContent = originalText;
+        }
+    }
+}
+
+/* ==========================================================================
+   BOUCLIER ANTI-DOUBLON (REPUBLICATION ANTI-FLAG VINTED)
+   ========================================================================== */
+
+let antiDupState = {
+    itemId: null,
+    backup: null,
+    photos: [],
+    coverSwapped: true,
+    titleVariations: [],
+    titleIndex: 0,
+    descVariations: [],
+    descIndex: 0,
+};
+
+function setupAntiDuplicateListeners() {
+    const modal = document.getElementById('antiDuplicateModal');
+    const closeBtn = document.getElementById('antiDupCloseBtn');
+    const swapBtn = document.getElementById('antiDupSwapCoverBtn');
+    const swapCheck = document.getElementById('antiDupSwapCoverCheck');
+    const cycleTitleBtn = document.getElementById('antiDupCycleTitleBtn');
+    const cycleDescBtn = document.getElementById('antiDupCycleDescBtn');
+    const launchBtn = document.getElementById('antiDupLaunchBtn');
+    const saveVaultBtn = document.getElementById('antiDupSaveVaultBtn');
+    const rawPrefillBtn = document.getElementById('antiDupRawPrefillBtn');
+
+    if (!modal) return;
+
+    if (closeBtn) {
+        closeBtn.addEventListener('click', () => {
+            modal.hidden = true;
+        });
+    }
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) {
+            modal.hidden = true;
+        }
+    });
+
+    if (swapBtn) {
+        swapBtn.addEventListener('click', () => {
+            if (swapCheck) {
+                swapCheck.checked = !swapCheck.checked;
+            }
+            antiDupState.coverSwapped = swapCheck ? swapCheck.checked : !antiDupState.coverSwapped;
+            updateAntiDupCoverPreview();
+        });
+    }
+
+    if (swapCheck) {
+        swapCheck.addEventListener('change', () => {
+            antiDupState.coverSwapped = swapCheck.checked;
+            updateAntiDupCoverPreview();
+        });
+    }
+
+    if (cycleTitleBtn) {
+        cycleTitleBtn.addEventListener('click', () => {
+            if (!antiDupState.titleVariations.length) return;
+            antiDupState.titleIndex = (antiDupState.titleIndex + 1) % antiDupState.titleVariations.length;
+            const titleInput = document.getElementById('antiDupNewTitle');
+            if (titleInput) {
+                titleInput.value = antiDupState.titleVariations[antiDupState.titleIndex];
+                titleInput.focus();
+            }
+        });
+    }
+
+    if (cycleDescBtn) {
+        cycleDescBtn.addEventListener('click', () => {
+            if (!antiDupState.descVariations.length) return;
+            antiDupState.descIndex = (antiDupState.descIndex + 1) % antiDupState.descVariations.length;
+            const descInput = document.getElementById('antiDupNewDesc');
+            if (descInput) {
+                descInput.value = antiDupState.descVariations[antiDupState.descIndex];
+                descInput.focus();
+            }
+        });
+    }
+
+    if (launchBtn) {
+        launchBtn.addEventListener('click', handleApplyAndPrefillVariations);
+    }
+
+    if (saveVaultBtn) {
+        saveVaultBtn.addEventListener('click', handleSaveVariationsToVault);
+    }
+
+    if (rawPrefillBtn) {
+        rawPrefillBtn.addEventListener('click', () => {
+            modal.hidden = true;
+            if (antiDupState.itemId) {
+                handleVaultPrefill(antiDupState.itemId);
+            }
+        });
+    }
+}
+
+function updateAntiDupCoverPreview() {
+    const imgEl = document.getElementById('antiDupCoverImg');
+    const tagEl = document.getElementById('antiDupCoverTag');
+    const swapCheck = document.getElementById('antiDupSwapCoverCheck');
+    if (!imgEl || !antiDupState.photos.length) return;
+
+    const shouldSwap = swapCheck ? swapCheck.checked : antiDupState.coverSwapped;
+    if (shouldSwap && antiDupState.photos.length >= 2) {
+        imgEl.src = antiDupState.photos[1];
+        if (tagEl) {
+            tagEl.textContent = 'Nouvelle couverture (Photo 2)';
+            tagEl.style.color = '#34d399';
+        }
+    } else {
+        imgEl.src = antiDupState.photos[0];
+        if (tagEl) {
+            tagEl.textContent = 'Photo 1 (Originale)';
+            tagEl.style.color = '#94a3b8';
+        }
+    }
+}
+
+function generateTitleVariations(originalTitle, item = {}) {
+    const raw = String(originalTitle || '').trim();
+    if (!raw) return ['Article Vinted'];
+
+    const brand = String(item.brand || '').trim();
+    const variations = [];
+
+    const formatTitle = (str) => {
+        let clean = str.replace(/\s+/g, ' ').trim();
+        if (clean.length > 100) clean = clean.slice(0, 97) + '...';
+        return clean;
+    };
+
+    // 1. Detect segments separated by -, |, /, :, —
+    if (/[-|/—:]/.test(raw)) {
+        const parts = raw.split(/[-|/—:]/).map(p => p.trim()).filter(Boolean);
+        if (parts.length >= 2) {
+            variations.push(formatTitle(`${parts.slice(1).join(' - ')} - ${parts[0]}`));
+            variations.push(formatTitle(`${parts[parts.length - 1]} : ${parts.slice(0, -1).join(' ')}`));
+        }
+    }
+
+    // 2. Put brand or sub-brand in front if not already
+    const words = raw.split(/\s+/);
+    if (brand && !raw.toLowerCase().startsWith(brand.toLowerCase())) {
+        variations.push(formatTitle(`${brand} - ${raw}`));
+        variations.push(formatTitle(`${brand} ${raw}`));
+    }
+
+    // 3. Move keywords: split words and rearrange chunks
+    if (words.length >= 4) {
+        const mid = Math.floor(words.length / 2);
+        const chunk1 = words.slice(0, mid).join(' ');
+        const chunk2 = words.slice(mid).join(' ');
+        variations.push(formatTitle(`${chunk2} ${chunk1}`));
+    }
+
+    // 4. Subtle synonym replacements on common terms
+    let synTitle = raw;
+    const synMap = [
+        [/\bImport Japon\b/gi, 'Japon Édition'],
+        [/\bJapon\b/gi, 'Japon Officiel'],
+        [/\bPeluche Chien\b/gi, 'Peluche Chien Kawaii'],
+        [/\bTrès bon état\b/gi, 'TBE'],
+        [/\bNeuf avec étiquette\b/gi, 'Neuf Étiqueté'],
+        [/\bNeuf sans étiquette\b/gi, 'Comme Neuf'],
+        [/\bVintage\b/gi, 'Style Vintage'],
+        [/\bOversize\b/gi, 'Coupe Oversize'],
+    ];
+    for (const [rgx, rep] of synMap) {
+        if (rgx.test(synTitle)) {
+            synTitle = synTitle.replace(rgx, rep);
+            break;
+        }
+    }
+    if (synTitle !== raw) {
+        variations.push(formatTitle(synTitle));
+    }
+
+    if (variations.length < 3 && words.length >= 3) {
+        const reordered = [...words.slice(-2), ...words.slice(0, -2)].join(' ');
+        variations.push(formatTitle(reordered));
+    }
+
+    const unique = Array.from(new Set(variations.filter(v => v && v !== raw)));
+    if (!unique.length) {
+        unique.push(formatTitle(`${raw} ✨`));
+        unique.push(formatTitle(`Authentique ${raw}`));
+    }
+
+    return unique;
+}
+
+function generateDescriptionVariations(originalDesc, item = {}) {
+    const raw = String(originalDesc || '').trim();
+    const brand = String(item.brand || '').trim();
+    const condition = String(item.condition || '').trim();
+    const title = String(item.title || '').trim();
+    const colors = Array.isArray(item.colors) ? item.colors.join(', ') : String(item.colors || '');
+    const material = String(item.material || '').trim();
+
+    let cleanBody = raw
+        .replace(/^(bonjour|bonsoir|salut|hello)[^.\n]*[.\n]*/i, '')
+        .replace(/\b(envoi rapide|envoie rapide|colis soigné|frais de port)[^.\n]*[.\n]*/gi, '')
+        .trim();
+
+    let enrichedCondition = condition;
+    if (condition.toLowerCase().includes('neuf sans étiquette')) {
+        enrichedCondition = 'Article neuf, jamais utilisé/porté (sans étiquette)';
+    } else if (condition.toLowerCase().includes('très bon état')) {
+        enrichedCondition = 'Très bon état général, propre et soigné';
+    } else if (condition.toLowerCase().includes('bon état')) {
+        enrichedCondition = 'Bon état d\'usage';
+    } else if (condition.toLowerCase().includes('neuf avec étiquette')) {
+        enrichedCondition = 'Neuf avec son étiquette d\'origine';
+    }
+
+    const variations = [];
+
+    // Variation 1: Clean Pro bullet points with Sparkle hook
+    variations.push(`✨ Belle trouvaille disponible :
+
+• Présentation : ${cleanBody || title}
+${enrichedCondition ? `• État : ${enrichedCondition}` : ''}
+${brand ? `• Marque : ${brand}` : ''}
+${colors ? `• Couleur(s) : ${colors}` : ''}
+${material ? `• Matière : ${material}` : ''}
+
+📦 Expédition rapide et emballage très soigné sous 24h/48h.
+💬 N'hésitez pas si vous avez la moindre question ou besoin de photos complémentaires !`);
+
+    // Variation 2: Warm casual bullet points
+    variations.push(`🧸 En vente : ${title}
+
+• Détails de l'article : ${cleanBody || 'Voir photos détaillées.'}
+${enrichedCondition ? `• Condition : ${enrichedCondition}` : ''}
+${brand ? `• Fabricant / Marque : ${brand}` : ''}
+${colors ? `• Coloris : ${colors}` : ''}
+
+⭐ Envoi rapide, propre et protégé.
+N'hésitez pas à jeter un œil à mon dressing pour faire des lots et économiser sur les frais de port !`);
+
+    // Variation 3: Minimalist bullet points
+    variations.push(`Je propose à la vente cet article :
+
+▪️ Description : ${cleanBody || title}
+${enrichedCondition ? `▪️ État : ${enrichedCondition}` : ''}
+${brand ? `▪️ Marque : ${brand}` : ''}
+${material ? `▪️ Composition : ${material}` : ''}
+
+🚚 Envoi rapide et soigné garanti.`);
+
+    return variations;
+}
+
+async function handleOpenAntiDuplicateModal(itemId) {
+    try {
+        const cleanId = String(itemId || '').trim();
+        addLog('info', `Chargement du Bouclier Anti-Doublon pour l'annonce #${cleanId}...`);
+
+        let backup = null;
+        try {
+            const response = await chrome.runtime.sendMessage({
+                action: 'getVaultItemDetails',
+                itemId: cleanId,
+            });
+            backup = response?.backup;
+        } catch (_) {}
+
+        if (!backup) {
+            const key = `vinted_republish_backup_${cleanId}`;
+            const res = await chrome.storage.local.get(key);
+            backup = res[key];
+        }
+
+        if (!backup) {
+            const indexRes = await chrome.storage.local.get('vinted_republish_backup_index_v1');
+            const index = Array.isArray(indexRes.vinted_republish_backup_index_v1)
+                ? indexRes.vinted_republish_backup_index_v1
+                : [];
+            const entry = index.find(e => String(e.itemId).trim() === cleanId || String(e.storageKey).includes(cleanId));
+            if (entry && entry.storageKey) {
+                const res = await chrome.storage.local.get(entry.storageKey);
+                backup = res[entry.storageKey];
+            }
+        }
+
+        if (!backup) {
+            throw new Error(`Annonce #${cleanId} introuvable dans le coffre-fort`);
+        }
+
+        const photos = extractPhotosFromBackup(backup);
+        antiDupState.itemId = cleanId;
+        antiDupState.backup = backup;
+        antiDupState.photos = photos;
+
+        // Generer les variations de titre et description
+        const titleVars = generateTitleVariations(backup.item?.title, backup.item);
+        antiDupState.titleVariations = titleVars;
+        antiDupState.titleIndex = 0;
+
+        const descVars = generateDescriptionVariations(backup.item?.description, backup.item);
+        antiDupState.descVariations = descVars;
+        antiDupState.descIndex = 0;
+
+        antiDupState.coverSwapped = photos.length >= 2;
+
+        const subtitleEl = document.getElementById('antiDupItemSubtitle');
+        if (subtitleEl) subtitleEl.textContent = backup.item?.title || `Annonce #${cleanId}`;
+
+        const origTitleEl = document.getElementById('antiDupOriginalTitle');
+        if (origTitleEl) origTitleEl.textContent = backup.item?.title || '—';
+
+        const newTitleInput = document.getElementById('antiDupNewTitle');
+        if (newTitleInput) newTitleInput.value = titleVars[0] || backup.item?.title || '';
+
+        const newDescInput = document.getElementById('antiDupNewDesc');
+        if (newDescInput) newDescInput.value = descVars[0] || backup.item?.description || '';
+
+        const swapCheck = document.getElementById('antiDupSwapCoverCheck');
+        if (swapCheck) swapCheck.checked = antiDupState.coverSwapped;
+
+        updateAntiDupCoverPreview();
+
+        const modal = document.getElementById('antiDuplicateModal');
+        if (modal) modal.hidden = false;
+        addLog('success', '🛡️ Bouclier Anti-Doublon prêt : variations générées avec succès.');
+    } catch (err) {
+        addLog('error', 'Erreur ouverture Bouclier Anti-Doublon: ' + err.message);
+    }
+}
+
+async function handleApplyAndPrefillVariations() {
+    const launchBtn = document.getElementById('antiDupLaunchBtn');
+    const originalText = launchBtn ? launchBtn.innerHTML : '';
+    try {
+        if (!antiDupState.itemId || !antiDupState.backup) return;
+
+        if (launchBtn) {
+            launchBtn.disabled = true;
+            launchBtn.innerHTML = '⏳ Traitement anti-doublon des photos...';
+        }
+
+        const newTitleInput = document.getElementById('antiDupNewTitle');
+        const newDescInput = document.getElementById('antiDupNewDesc');
+        const swapCheck = document.getElementById('antiDupSwapCoverCheck');
+        const autoCropCheck = document.getElementById('antiDupAutoCropCheck');
+
+        const title = (newTitleInput?.value || '').trim() || antiDupState.backup.item?.title;
+        const description = (newDescInput?.value || '').trim() || antiDupState.backup.item?.description;
+
+        // Reordonnancement des photos
+        let orderedPhotos = [...antiDupState.photos];
+        const shouldSwap = swapCheck ? swapCheck.checked : antiDupState.coverSwapped;
+        if (shouldSwap && orderedPhotos.length >= 2) {
+            const [p1, p2, ...rest] = orderedPhotos;
+            orderedPhotos = [p2, p1, ...rest];
+        }
+
+        let finalPhotos = orderedPhotos;
+
+        // Micro-retouche automatique si cochee (+5% recadrage, +2% lumi, rotation, bruit)
+        if (autoCropCheck && autoCropCheck.checked && window.ImageProcessor) {
+            addLog('info', 'Application du micro-recadrage et ajustement de luminosité anti-pHash...');
+            const processor = new window.ImageProcessor();
+            const processedList = [];
+
+            for (let i = 0; i < orderedPhotos.length; i++) {
+                let rawSrc = orderedPhotos[i];
+                if (rawSrc && !rawSrc.startsWith('data:') && !rawSrc.startsWith('blob:')) {
+                    rawSrc = await urlToDataUrl(rawSrc);
+                }
+                const img = await processor.loadImage(rawSrc);
+
+                // Recadrage 5%, micro-rotation 0.7°, luminosite +2%
+                const actualCrop = Math.max(1, 5 + (i % 3) * 0.2);
+                const actualRot = 0.7 * (i % 2 === 0 ? 1 : -1);
+
+                let proc = processor.cropImage(img, actualCrop);
+                if (actualRot !== 0) proc = processor.rotateImage(proc, actualRot);
+
+                const c = document.createElement('canvas');
+                c.width = proc.width;
+                c.height = proc.height;
+                const ctx = c.getContext('2d');
+                ctx.filter = 'brightness(1.02)';
+                ctx.drawImage(proc, 0, 0);
+                ctx.filter = 'none';
+
+                const finalCanvas = processor.addSubtleNoise(c, {
+                    strength: 5 + (i % 3),
+                    brightness: 0.008,
+                });
+
+                const base64 = processor.canvasToBase64(finalCanvas, 0.92);
+                processedList.push(base64);
+            }
+            finalPhotos = processedList;
+        }
+
+        addLog('info', `Envoi de l'annonce avec le nouveau titre: "${title}"`);
+        updateStatus('processing', 'Pré-remplissage avec protection anti-doublon...');
+
+        const response = await chrome.runtime.sendMessage({
+            action: 'restoreVaultItem',
+            itemId: antiDupState.itemId,
+            settings: {
+                autoSave: false,
+                allowDestructiveRepublish: false,
+                variations: {
+                    title,
+                    description,
+                    photos: finalPhotos,
+                },
+            },
+        });
+
+        if (!response?.success) {
+            throw new Error(response?.error || 'Échec du pré-remplissage');
+        }
+
+        const modal = document.getElementById('antiDuplicateModal');
+        if (modal) modal.hidden = true;
+
+        addLog('success', `🚀 Annonce prête sur Vinted avec couverture modifiée, titre reformulé et description aérée !`);
+        updateStatus('ready', 'Formulaire Vinted en cours de remplissage');
+    } catch (err) {
+        addLog('error', 'Erreur republication anti-doublon: ' + err.message);
+        updateStatus('error', err.message);
+    } finally {
+        if (launchBtn) {
+            launchBtn.disabled = false;
+            launchBtn.innerHTML = originalText;
+        }
+    }
+}
+
+async function handleSaveVariationsToVault() {
+    const saveBtn = document.getElementById('antiDupSaveVaultBtn');
+    const originalText = saveBtn ? saveBtn.textContent : '';
+    try {
+        if (!antiDupState.itemId || !antiDupState.backup) return;
+
+        if (saveBtn) {
+            saveBtn.disabled = true;
+            saveBtn.textContent = '⏳ Sauvegarde...';
+        }
+
+        const newTitleInput = document.getElementById('antiDupNewTitle');
+        const newDescInput = document.getElementById('antiDupNewDesc');
+        const swapCheck = document.getElementById('antiDupSwapCoverCheck');
+
+        const title = (newTitleInput?.value || '').trim() || antiDupState.backup.item?.title;
+        const description = (newDescInput?.value || '').trim() || antiDupState.backup.item?.description;
+
+        let orderedPhotos = [...antiDupState.photos];
+        const shouldSwap = swapCheck ? swapCheck.checked : antiDupState.coverSwapped;
+        if (shouldSwap && orderedPhotos.length >= 2) {
+            const [p1, p2, ...rest] = orderedPhotos;
+            orderedPhotos = [p2, p1, ...rest];
+        }
+
+        const backup = antiDupState.backup;
+        if (!backup.item) backup.item = {};
+        backup.item.title = title;
+        backup.item.description = description;
+
+        // Mise a jour des photos dans le backup
+        if (orderedPhotos.length) {
+            const preparedArray = orderedPhotos.map((dataUrl, idx) => ({
+                index: idx,
+                name: `vinted_mod_${antiDupState.itemId}_${idx}.jpg`,
+                type: 'image/jpeg',
+                dataUrl: dataUrl,
+                size: Math.round(String(dataUrl || '').length * 0.75),
+            }));
+            if (!backup.photos) backup.photos = {};
+            backup.photos.prepared = preparedArray;
+            backup.photos.preparedCount = preparedArray.length;
+            backup.item.photos = orderedPhotos;
+            backup.item.thumbnail = orderedPhotos[0];
+            backup.item.photoCount = orderedPhotos.length;
+        }
+
+        const storageKey = `vinted_republish_backup_${antiDupState.itemId}`;
+        await chrome.storage.local.set({ [storageKey]: backup });
+
+        // Mettre a jour l'index
+        const indexRes = await chrome.storage.local.get('vinted_republish_backup_index_v1');
+        const index = Array.isArray(indexRes.vinted_republish_backup_index_v1)
+            ? indexRes.vinted_republish_backup_index_v1
+            : [];
+        const entry = index.find(e => String(e.itemId) === String(antiDupState.itemId) || e.storageKey === storageKey);
+        if (entry) {
+            entry.title = title;
+            if (orderedPhotos.length) entry.thumbnail = orderedPhotos[0];
+            await chrome.storage.local.set({ vinted_republish_backup_index_v1: index });
+        }
+
+        addLog('success', '✅ Variations (titre, description, couverture) enregistrées dans le Coffre-fort !');
+        await refreshVaultList();
+
+        if (saveBtn) {
+            saveBtn.textContent = '✅ Enregistré !';
+            setTimeout(() => {
+                saveBtn.disabled = false;
+                saveBtn.textContent = originalText;
+            }, 2000);
+        }
+    } catch (err) {
+        addLog('error', 'Erreur sauvegarde variations: ' + err.message);
+        if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
         }
     }
 }
