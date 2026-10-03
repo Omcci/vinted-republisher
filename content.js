@@ -60,23 +60,43 @@ function ensureOverlay() {
     <div style="margin-top:8px;font-size:11px;opacity:.75;">Backup local = infos + photos. En cas d’échec: Télécharger backup / restaurer.</div>
   `;
 
-  Object.assign(overlay.style, {
-    position: "fixed",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%, -50%)",
-    width: "min(520px, 92vw)",
-    maxHeight: "70vh",
-    zIndex: "2147483647",
-    background: "rgba(15,23,42,.96)",
-    color: "#fff",
-    border: "1px solid rgba(148,163,184,.35)",
-    boxShadow: "0 20px 60px rgba(0,0,0,.45)",
-    borderRadius: "12px",
-    padding: "12px",
-    backdropFilter: "blur(4px)",
-    fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
-  });
+  const isDiscreet = document.hidden || window.__VINTED_DISCREET_MODE__;
+  if (isDiscreet) {
+    Object.assign(overlay.style, {
+      position: "fixed",
+      bottom: "20px",
+      right: "20px",
+      width: "min(400px, 90vw)",
+      maxHeight: "260px",
+      zIndex: "2147483647",
+      background: "rgba(15,23,42,.95)",
+      color: "#fff",
+      border: "1px solid rgba(148,163,184,.35)",
+      boxShadow: "0 10px 30px rgba(0,0,0,.4)",
+      borderRadius: "10px",
+      padding: "10px",
+      backdropFilter: "blur(4px)",
+      fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    });
+  } else {
+    Object.assign(overlay.style, {
+      position: "fixed",
+      top: "50%",
+      left: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "min(520px, 92vw)",
+      maxHeight: "70vh",
+      zIndex: "2147483647",
+      background: "rgba(15,23,42,.96)",
+      color: "#fff",
+      border: "1px solid rgba(148,163,184,.35)",
+      boxShadow: "0 20px 60px rgba(0,0,0,.45)",
+      borderRadius: "12px",
+      padding: "12px",
+      backdropFilter: "blur(4px)",
+      fontFamily: "Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    });
+  }
 
   document.body.appendChild(overlay);
   document.getElementById(OVERLAY_COPY_LOGS_ID)?.addEventListener("click", async () => {
@@ -1918,8 +1938,17 @@ async function startSafeDomDraft(itemId, scannedItem = null, settings = {}) {
     },
   });
 
-  appendOverlayLog("info", "Ouverture de la page de création Vinted...");
-  window.location.href = "https://www.vinted.fr/items/new";
+  if (settings?.openInBackground) {
+    appendOverlayLog("info", "Ouverture de la page de création Vinted en arrière-plan discret...");
+    await chrome.runtime.sendMessage({
+      action: "openDraftAfterImport",
+      openInBackground: true,
+      itemId: item.itemId || item.id,
+    });
+  } else {
+    appendOverlayLog("info", "Ouverture de la page de création Vinted...");
+    window.location.href = "https://www.vinted.fr/items/new";
+  }
 }
 
 /**
@@ -2373,6 +2402,21 @@ function verifyDraftAgainstBackup(draft, engineResult = null) {
     }
 
     if (secondaryOk) continue;
+
+    if (check.id === "material") {
+      // Matériau est optionnel sur Vinted: si l'engine a validé ou si un token matche, on valide.
+      if (engineOk.get("material")) continue;
+      const parseTokens = typeof window.parseMaterialTokens === "function"
+        ? window.parseMaterialTokens
+        : (typeof parseMaterialTokens === "function" ? parseMaterialTokens : null);
+      const expectedTokens = parseTokens ? parseTokens(check.expected) : [check.expected];
+      if (expectedTokens.some((tok) => valueLooksMatching(tok, check.actual))) {
+        continue;
+      }
+      // Ne jamais bloquer le brouillon pour le matériau optionnel
+      appendOverlayLog("warning", `Validation matériau: "${check.expected}" non vérifié dans le DOM (poursuite du brouillon)`);
+      continue;
+    }
 
     mismatches.push({
       fieldId: check.id,
@@ -4189,7 +4233,7 @@ async function continuePendingDomDraftIfNeeded() {
 
   const engineResult = await window.vintedRunFormMatrixAutomation(draft, { strict: false });
   const failed = (engineResult.fieldResults || []).filter(
-    (r) => !r.success && !r.skipped && !r.canContinue && !(r.isSensitive && r.canContinue) && r.required !== false && r.fieldId !== "colors"
+    (r) => !r.success && !r.skipped && !r.canContinue && !(r.isSensitive && r.canContinue) && r.required !== false && r.fieldId !== "colors" && r.fieldId !== "material"
   );
 
   // Price is critical: re-apply after engine (category remount) then hard-check.
@@ -4345,6 +4389,16 @@ async function continuePendingDomDraftIfNeeded() {
       "warning",
       "Mode safe: active « Autoriser suppression + publication » dans le popup pour afficher le bouton de confirmation."
     );
+    try {
+      chrome.runtime.sendMessage({
+        action: "NOTIFY_DRAFT_READY",
+        title: draft.title || "Nouvelle annonce",
+        draftUrl: draftUrl || window.location.href,
+        inBackground: Boolean(draft?.settings?.openInBackground),
+      });
+    } catch (_) {
+      // ignore
+    }
     // Still offer one-click publish-only if a draft URL exists.
     showBackupRecoveryActions(draft.itemId, {
       draftUrl,

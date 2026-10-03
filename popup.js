@@ -138,6 +138,28 @@ function setupEventListeners() {
         });
     }
 
+    // Préférence : pré-remplissage en arrière-plan (mode discret)
+    const vaultBgToggle = document.getElementById('vaultBackgroundToggle');
+    const antiDupBgToggle = document.getElementById('antiDupBackgroundCheck');
+    chrome.storage.local.get(['vinted_pref_open_in_background']).then((res) => {
+        const isBg = res.vinted_pref_open_in_background !== false; // default true
+        if (vaultBgToggle) vaultBgToggle.checked = isBg;
+        if (antiDupBgToggle) antiDupBgToggle.checked = isBg;
+    });
+
+    const updateBgPref = (checked) => {
+        if (vaultBgToggle) vaultBgToggle.checked = checked;
+        if (antiDupBgToggle) antiDupBgToggle.checked = checked;
+        chrome.storage.local.set({ vinted_pref_open_in_background: checked });
+    };
+
+    if (vaultBgToggle) {
+        vaultBgToggle.addEventListener('change', (e) => updateBgPref(e.target.checked));
+    }
+    if (antiDupBgToggle) {
+        antiDupBgToggle.addEventListener('change', (e) => updateBgPref(e.target.checked));
+    }
+
     // Toggle import drop zone
     bindClickIfExists('importBackupTrigger', () => {
         const zone = document.getElementById('importZoneWrapper');
@@ -1367,18 +1389,28 @@ function renderVaultCards(itemsToRender) {
 
 async function handleVaultPrefill(itemId) {
     try {
-        addLog('info', `Chargement de l'annonce #${itemId} pour pré-remplissage...`);
+        const inBackground = Boolean(document.getElementById('vaultBackgroundToggle')?.checked ?? true);
+        addLog('info', `Chargement de l'annonce #${itemId} (${inBackground ? 'arrière-plan discret' : 'premier plan'})...`);
         updateStatus('processing', 'Pré-remplissage en cours...');
         const response = await chrome.runtime.sendMessage({
             action: 'restoreVaultItem',
             itemId,
-            settings: { autoSave: false, allowDestructiveRepublish: false },
+            settings: {
+                autoSave: false,
+                allowDestructiveRepublish: false,
+                openInBackground: inBackground,
+            },
         });
         if (!response?.success) {
             throw new Error(response?.error || 'Échec du pré-remplissage');
         }
-        addLog('success', `Annonce #${itemId} chargée sur https://www.vinted.fr/items/new ! Remplissage en cours...`);
-        updateStatus('ready', 'Formulaire Vinted en cours de remplissage');
+        if (inBackground) {
+            addLog('success', `🚀 Annonce #${itemId} en cours de pré-remplissage en arrière-plan ! Une notification vous préviendra dès qu'elle sera prête.`);
+            updateStatus('ready', 'Formulaire Vinted en cours (arrière-plan)');
+        } else {
+            addLog('success', `Annonce #${itemId} chargée sur https://www.vinted.fr/items/new ! Remplissage en cours...`);
+            updateStatus('ready', 'Formulaire Vinted en cours de remplissage');
+        }
     } catch (error) {
         addLog('error', 'Erreur pré-remplissage: ' + error.message);
         updateStatus('error', error.message);
@@ -2628,6 +2660,12 @@ async function handleOpenAntiDuplicateModal(itemId) {
         const swapCheck = document.getElementById('antiDupSwapCoverCheck');
         if (swapCheck) swapCheck.checked = antiDupState.coverSwapped;
 
+        const bgCheck = document.getElementById('antiDupBackgroundCheck');
+        if (bgCheck) {
+            const pref = await chrome.storage.local.get('vinted_pref_open_in_background');
+            bgCheck.checked = pref.vinted_pref_open_in_background !== false;
+        }
+
         updateAntiDupCoverPreview();
 
         const modal = document.getElementById('antiDuplicateModal');
@@ -2706,7 +2744,8 @@ async function handleApplyAndPrefillVariations() {
             finalPhotos = processedList;
         }
 
-        addLog('info', `Envoi de l'annonce avec le nouveau titre: "${title}"`);
+        const inBackground = Boolean(document.getElementById('antiDupBackgroundCheck')?.checked ?? true);
+        addLog('info', `Envoi de l'annonce avec le nouveau titre: "${title}" (${inBackground ? 'mode discret en arrière-plan' : 'premier plan'})`);
         updateStatus('processing', 'Pré-remplissage avec protection anti-doublon...');
 
         const response = await chrome.runtime.sendMessage({
@@ -2715,6 +2754,7 @@ async function handleApplyAndPrefillVariations() {
             settings: {
                 autoSave: false,
                 allowDestructiveRepublish: false,
+                openInBackground: inBackground,
                 variations: {
                     title,
                     description,
@@ -2730,8 +2770,13 @@ async function handleApplyAndPrefillVariations() {
         const modal = document.getElementById('antiDuplicateModal');
         if (modal) modal.hidden = true;
 
-        addLog('success', `🚀 Annonce prête sur Vinted avec couverture modifiée, titre reformulé et description aérée !`);
-        updateStatus('ready', 'Formulaire Vinted en cours de remplissage');
+        if (inBackground) {
+            addLog('success', `🚀 Annonce lancée en arrière-plan (mode discret) ! Une notification s'affichera dès que le brouillon sera prêt.`);
+            updateStatus('ready', 'Pré-remplissage en arrière-plan');
+        } else {
+            addLog('success', `🚀 Annonce prête sur Vinted avec couverture modifiée, titre reformulé et description aérée !`);
+            updateStatus('ready', 'Formulaire Vinted en cours de remplissage');
+        }
     } catch (err) {
         addLog('error', 'Erreur republication anti-doublon: ' + err.message);
         updateStatus('error', err.message);

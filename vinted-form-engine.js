@@ -1114,17 +1114,95 @@ async function adapterMultiSelect(spec, values) {
   return { success: true, canContinue: true };
 }
 
+const MATERIAL_SYNONYMS = {
+  coton: ["Coton", "Cotton"],
+  cotton: ["Coton", "Cotton"],
+  polyester: ["Polyester"],
+  elasthanne: ["Élasthanne", "Elasthanne", "Spandex", "Elastane"],
+  élasthanne: ["Élasthanne", "Elasthanne", "Spandex", "Elastane"],
+  spandex: ["Élasthanne", "Elasthanne", "Spandex"],
+  elastane: ["Élasthanne", "Elasthanne", "Spandex"],
+  laine: ["Laine", "Wool"],
+  wool: ["Laine", "Wool"],
+  cuir: ["Cuir", "Leather"],
+  leather: ["Cuir", "Leather"],
+  similicuir: ["Similicuir", "Faux cuir", "Cuir synthétique", "Synthétique"],
+  soie: ["Soie", "Silk"],
+  silk: ["Soie", "Silk"],
+  viscose: ["Viscose", "Rayon"],
+  rayon: ["Viscose", "Rayon"],
+  acrylique: ["Acrylique", "Acrylic"],
+  acrylic: ["Acrylique", "Acrylic"],
+  lin: ["Lin", "Linen"],
+  linen: ["Lin", "Linen"],
+  velours: ["Velours", "Velvet"],
+  velvet: ["Velours", "Velvet"],
+  denim: ["Denim", "Jean"],
+  jean: ["Jean", "Denim"],
+  polaire: ["Polaire", "Fleece"],
+  fleece: ["Polaire", "Fleece"],
+  cachemire: ["Cachemire", "Cashmere"],
+  cashmere: ["Cachemire", "Cashmere"],
+  synthetique: ["Synthétique", "Synthetique", "Synthetic"],
+  synthétique: ["Synthétique", "Synthetique", "Synthetic"],
+  nylon: ["Nylon", "Polyamide"],
+  polyamide: ["Polyamide", "Nylon"],
+  toile: ["Toile", "Canvas"],
+  canvas: ["Toile", "Canvas"],
+  fourrure: ["Fourrure", "Fausse fourrure"],
+  bois: ["Bois", "Wood"],
+  wood: ["Bois", "Wood"],
+  metal: ["Métal", "Metal"],
+  métal: ["Métal", "Metal"],
+  plastique: ["Plastique", "Plastic"],
+  plastic: ["Plastique", "Plastic"],
+  verre: ["Verre", "Glass"],
+  glass: ["Verre", "Glass"],
+  argent: ["Argent", "Silver"],
+  silver: ["Argent", "Silver"],
+  or: ["Or", "Gold"],
+  gold: ["Or", "Gold"],
+  acier: ["Acier", "Acier inoxydable", "Steel"],
+  ceramique: ["Céramique", "Ceramic"],
+  céramique: ["Céramique", "Ceramic"],
+};
+
+function parseMaterialTokens(value) {
+  if (!value) return [];
+  let rawList = [];
+  if (Array.isArray(value)) {
+    rawList = value;
+  } else if (typeof value === "string") {
+    let cleaned = value.replace(/\d+([.,]\d+)?\s*%/g, " ");
+    cleaned = cleaned.replace(/\b(pur|pure|véritable|veritable|genuine|composition)\b/gi, " ");
+    rawList = cleaned.split(/[\/,;+&]+|\s+et\s+|\s+and\s+/i);
+  }
+  const tokens = [];
+  for (const raw of rawList) {
+    const trimmed = String(raw || "").trim();
+    if (!trimmed) continue;
+    const cleanToken = trimmed.replace(/^[\d\s\-:.]+|[\d\s\-:.]+$/g, "").trim();
+    if (cleanToken && cleanToken.length >= 2) {
+      tokens.push(cleanToken);
+    }
+  }
+  return Array.from(new Set(tokens));
+}
+
 /**
- * Remplit itemSelect (Matériau) — liste déroulante sans checkbox/radio réel.
- * Validation via primaryFieldValue ou committedFieldValue.
+ * Remplit itemSelect (Matériau) — supporte multi-sélection, saisie recherche,
+ * nettoyage des pourcentages et résilience anti-blocage (canContinue: true).
  *
  * @param {FieldSpec} spec
- * @param {string} value
- * @returns {{ success: boolean, reason?: string }}
+ * @param {string|string[]} value
+ * @returns {{ success: boolean, canContinue: boolean, value?: string, reason?: string }}
  */
 async function adapterItemSelect(spec, value) {
-  const target = String(value || "").trim();
-  if (!target) return { success: false, reason: "Valeur matériau vide" };
+  const tokens = parseMaterialTokens(value);
+  const rawTarget = Array.isArray(value) ? value.join(", ") : String(value || "").trim();
+  if (tokens.length === 0) {
+    return { success: true, canContinue: true, reason: "Valeur matériau vide ou non renseignée" };
+  }
 
   const label = spec.label;
   let container = null;
@@ -1134,41 +1212,116 @@ async function adapterItemSelect(spec, value) {
   }
 
   if (!container) {
-    return { success: false, reason: `Champ ${label} introuvable dans le DOM` };
+    return { success: false, canContinue: true, reason: `Champ ${label} introuvable dans le DOM (ignoré car optionnel)` };
   }
 
-  const targetNorm = normalizeComparableText(target);
-  const findItemClickTargets = (choice) => {
+  const findMaterialSearchInput = () => {
+    const selectors = [
+      "input#material-search-input",
+      "[role='dialog'] input#material-search-input",
+      "[role='dialog'] input[type='text']",
+      "[role='dialog'] input[type='search']",
+      "[class*='Dialog'] input[type='text']",
+      "[class*='InputBar'] input[type='text']",
+      "input[id*='material'][id*='search']",
+      "input[name*='material'][type='text']",
+      "input[placeholder*='matériau' i]",
+      "input[placeholder*='matière' i]",
+      "input[placeholder*='material' i]",
+      "input[placeholder*='recherche' i]",
+      "input[placeholder*='search' i]",
+    ];
+    for (const selector of selectors) {
+      try {
+        const el = document.querySelector(selector);
+        if (el && isVisibleDomElement(el) && isUsableTextEntry(el)) return el;
+      } catch (_) {}
+    }
+    return null;
+  };
+
+  const isMaterialMatch = (choiceText, targetToken) => {
+    const normChoice = normalizeComparableText(choiceText);
+    const normTarget = normalizeComparableText(targetToken);
+    if (!normChoice || !normTarget) return false;
+    if (normChoice === normTarget) return true;
+    if (normChoice.startsWith(`${normTarget} `) || normTarget.startsWith(`${normChoice} `)) return true;
+    const synList = MATERIAL_SYNONYMS[normTarget] || [];
+    for (const syn of synList) {
+      const normSyn = normalizeComparableText(syn);
+      if (normChoice === normSyn || normChoice.startsWith(`${normSyn} `) || normSyn.startsWith(`${normChoice} `)) {
+        return true;
+      }
+    }
+    return false;
+  };
+
+  const findMaterialChoice = (targetToken) => {
+    const candidates = Array.from(
+      document.querySelectorAll(
+        "[id^='material-'], [data-testid*='material'], .web_ui__Cell__cell, [class*='Cell__cell'], [role='checkbox'], [role='radio'], [role='option'], [role='button'], button, li"
+      )
+    ).filter((el) => {
+      if (!el || !el.isConnected || !isVisibleDomElement(el)) return false;
+      if (isInsideAutomationExcludedSurface(el)) return false;
+      const txt = (el.textContent || "").trim();
+      if (!txt || txt.length > 80) return false;
+      if (el.querySelector?.("textarea, input[type='text']")) return false;
+      return isMaterialMatch(txt, targetToken);
+    });
+
+    if (candidates.length > 0) {
+      candidates.sort((a, b) => {
+        const aId = (a.id || "").startsWith("material-") ? -1000 : 0;
+        const bId = (b.id || "").startsWith("material-") ? -1000 : 0;
+        const aCheck = a.querySelector?.("input[type='checkbox'], [role='checkbox']") ? -500 : 0;
+        const bCheck = b.querySelector?.("input[type='checkbox'], [role='checkbox']") ? -500 : 0;
+        return aId - bId || aCheck - bCheck || (a.textContent || "").trim().length - (b.textContent || "").trim().length;
+      });
+      return candidates[0];
+    }
+
+    const fallback = findVisibleChoiceByText(targetToken);
+    if (fallback) return fallback;
+    const synList = MATERIAL_SYNONYMS[normalizeComparableText(targetToken)] || [];
+    for (const syn of synList) {
+      const synChoice = findVisibleChoiceByText(syn);
+      if (synChoice) return synChoice;
+    }
+    return null;
+  };
+
+  const findItemClickTargets = (choice, targetNorm) => {
     if (!choice) return [];
     const descendants = Array.from(choice.querySelectorAll(
-      ".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='radio'], button, [tabindex], input[type='radio'], input[type='checkbox'], span, div"
+      ".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='radio'], [role='checkbox'], button, [tabindex], input[type='radio'], input[type='checkbox'], span, div"
     )).filter((el) => {
       if (!isVisibleDomElement(el)) return false;
       const tag = (el.tagName || "").toLowerCase();
       const role = (el.getAttribute?.("role") || "").toLowerCase();
       const txt = normalizeComparableText(el.textContent || "");
-      if (tag === "input" || role === "radio") return true;
+      if (tag === "input" || role === "radio" || role === "checkbox") return true;
       if (!txt) return false;
       return txt === targetNorm || txt.startsWith(`${targetNorm} `) || targetNorm.startsWith(txt);
     }).sort((a, b) => {
-      const aInteractive = a.matches?.(".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='radio'], button, [tabindex], input") ? -100 : 0;
-      const bInteractive = b.matches?.(".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='radio'], button, [tabindex], input") ? -100 : 0;
+      const aInteractive = a.matches?.(".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='radio'], [role='checkbox'], button, [tabindex], input") ? -100 : 0;
+      const bInteractive = b.matches?.(".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='radio'], [role='checkbox'], button, [tabindex], input") ? -100 : 0;
       return aInteractive - bInteractive || (a.textContent || "").length - (b.textContent || "").length;
     });
 
     const targets = [];
+    const preferred = choice.querySelector?.(".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='checkbox'], [role='radio'], button, input[type='checkbox'], input[type='radio']");
+    if (preferred) targets.push(preferred);
     for (const el of descendants) {
       targets.push(el);
-      const clickable = el.closest("button, [role='button'], [role='radio'], [tabindex], .web_ui__Cell__cell, [class*='Cell__cell'], li, [role='option']");
+      const clickable = el.closest("button, [role='button'], [role='checkbox'], [role='radio'], [tabindex], .web_ui__Cell__cell, [class*='Cell__cell'], li, [role='option']");
       if (clickable) targets.push(clickable);
     }
-    const preferred = choice.querySelector?.(".web_ui__Cell__cell, [class*='Cell__cell'], [role='button'], [role='radio'], button, [tabindex], input[type='radio'], input[type='checkbox']");
-    if (preferred) targets.push(preferred);
     targets.push(choice);
     return Array.from(new Set(targets.filter(Boolean)));
   };
 
-  const waitForItemCommit = async (choice, clickedTarget, timeoutMs = 1000) => {
+  const waitForItemCommit = async (targetNorm, choice, clickedTarget, timeoutMs = 800) => {
     const start = Date.now();
     let last = { primary: "", committed: "", selected: false };
     while (Date.now() - start < timeoutMs) {
@@ -1182,7 +1335,7 @@ async function adapterItemSelect(spec, value) {
       if (primary.includes(targetNorm) || committed.includes(targetNorm) || selected) {
         return { success: true, ...last };
       }
-      await sleep(120);
+      await sleep(100);
     }
     return { success: false, ...last };
   };
@@ -1190,58 +1343,108 @@ async function adapterItemSelect(spec, value) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const activator = findFieldActivator(label, container);
     logDomDebug(label, `itemSelect attempt ${attempt}`, {
-      target,
+      tokens,
+      rawTarget,
       activator: describeElement(activator),
       beforePrimary: readPrimaryValue(spec),
     });
 
     if (activator) {
       clickElementHard(activator);
-      await sleep(220);
+      await sleep(280);
+    } else {
+      clickElementHard(container);
+      await sleep(280);
     }
 
-    const choice = findVisibleChoiceByText(target);
-    let clickedTarget = null;
-    if (choice) {
-      for (const targetClick of findItemClickTargets(choice).slice(0, 6)) {
-        clickedTarget = targetClick;
-        clickElementHard(targetClick);
-        await sleep(160);
-        const snapshot = await waitForItemCommit(choice, clickedTarget, 360);
-        if (snapshot.success) break;
+    let selectedCount = 0;
+    const maxTokens = Math.min(tokens.length, 3); // Vinted accepts max 3 materials
+
+    for (let i = 0; i < maxTokens; i++) {
+      const token = tokens[i];
+      const targetNorm = normalizeComparableText(token);
+
+      const searchInput = findMaterialSearchInput();
+      if (searchInput) {
+        searchInput.focus();
+        setNativeInputValue(searchInput, token);
+        await sleep(350);
+        logDomDebug(label, "material search typed", { token, input: describeElement(searchInput) });
       }
-      logDomDebug(label, "itemSelect clicked", {
-        choice: describeElement(choice),
-        targetClick: describeElement(clickedTarget),
-        selected: Boolean(isOptionSelected(choice) || isOptionSelected(clickedTarget)),
-      });
-    } else {
-      logDomDebug(label, "itemSelect choice not found", { target });
+
+      const choice = findMaterialChoice(token);
+      let clickedTarget = null;
+      if (choice) {
+        if (isOptionSelected(choice)) {
+          selectedCount++;
+          continue;
+        }
+        for (const targetClick of findItemClickTargets(choice, targetNorm).slice(0, 6)) {
+          clickedTarget = targetClick;
+          clickElementHard(targetClick);
+          await sleep(150);
+          const snapshot = await waitForItemCommit(targetNorm, choice, clickedTarget, 300);
+          if (snapshot.success) break;
+        }
+        const sel = Boolean(isOptionSelected(choice) || isOptionSelected(clickedTarget));
+        logDomDebug(label, "itemSelect clicked", {
+          token,
+          choice: describeElement(choice),
+          targetClick: describeElement(clickedTarget),
+          selected: sel,
+        });
+        if (sel) selectedCount++;
+      } else {
+        logDomDebug(label, "itemSelect choice not found", { token });
+      }
+
+      if (searchInput && i < maxTokens - 1) {
+        setNativeInputValue(searchInput, "");
+        await sleep(150);
+      }
     }
 
-    let commit = await waitForItemCommit(choice, clickedTarget, 800);
-    if (!commit.success) {
-      await closeOpenDropdown();
-      await waitForDropdownClose(1200);
-      await sleep(120);
-      commit = await waitForItemCommit(choice, clickedTarget, 500);
-    } else {
-      await closeOpenDropdown();
-      await waitForDropdownClose(800);
+    // Check for modal confirmation button (Valider / Appliquer / Enregistrer / OK)
+    const confirmButtons = Array.from(document.querySelectorAll(
+      "[role='dialog'] button, [class*='Dialog'] button, .web_ui__Button__button"
+    )).filter((b) => {
+      if (!isVisibleDomElement(b)) return false;
+      const t = (b.textContent || "").trim().toLowerCase();
+      return t === "valider" || t === "appliquer" || t === "enregistrer" || t === "confirmer" || t === "ok" || t === "terminer";
+    });
+    if (confirmButtons.length > 0) {
+      clickElementHard(confirmButtons[0]);
+      await sleep(250);
     }
 
-    logDomDebug(label, "itemSelect post check", {
-      primary: commit.primary,
-      committed: commit.committed,
-      selected: commit.selected,
+    await closeOpenDropdown();
+    await waitForDropdownClose(800);
+
+    const primary = readPrimaryValue(spec);
+    const committed = readCommittedValue(spec);
+    const hasCommit = tokens.some((tok) => {
+      const norm = normalizeComparableText(tok);
+      return primary.includes(norm) || committed.includes(norm);
     });
 
-    if (commit.success) {
-      return { success: true };
+    logDomDebug(label, "itemSelect post check", {
+      primary,
+      committed,
+      selectedCount,
+      hasCommit,
+    });
+
+    if (selectedCount > 0 || hasCommit) {
+      return { success: true, canContinue: true, value: tokens.slice(0, maxTokens).join(", ") };
     }
   }
 
-  return { success: false, reason: `${label} non validé pour: "${target}"` };
+  // Material is optional: never block the draft
+  return {
+    success: false,
+    canContinue: true,
+    reason: `${label} non validé pour: "${rawTarget}" (ignoré car optionnel)`,
+  };
 }
 
 /**
@@ -2069,8 +2272,8 @@ async function runFormMatrixAutomation(draft, options = {}) {
 
     appendOverlayLog("info", `Remplissage: ${spec.label} → ${Array.isArray(value) ? value.join("/") : value || "(vide)"}`);
     const result = await executeFieldAdapter(spec, value, draft);
-    const isRequired = Boolean(required || spec.required);
-    if (!result.success && !isRequired) {
+    const isRequired = (spec.id === "material" || spec.id === "colors") ? false : Boolean(required || spec.required);
+    if (!result.success && (!isRequired || spec.id === "material" || spec.id === "colors")) {
       result.canContinue = true;
       appendOverlayLog("warning", `${spec.label}: ${result.reason || "Optionnel, non sélectionné"} (poursuite du brouillon)`);
     } else if (result.success) {
@@ -2115,7 +2318,7 @@ async function runFormMatrixAutomation(draft, options = {}) {
       appendOverlayLog("error", `Catégorie non validée, arrêt du remplissage dépendant: ${result.reason}`);
       criticalFailure = true;
       break;
-    } else if (required && !result.success) {
+    } else if (isRequired && !result.success) {
       appendOverlayLog("error", `Champ requis "${spec.label}" non validé: ${result.reason}`);
       if (options.strict) {
         criticalFailure = true;
@@ -2173,4 +2376,5 @@ if (typeof window !== "undefined") {
   window.vintedRunFormMatrixAutomation = runFormMatrixAutomation;
   window.vintedInspectCurrentForm      = inspectCurrentForm;
   window.vintedSelectCategoryForSchemaCrawler = selectCategoryForSchemaCrawler;
+  window.parseMaterialTokens           = parseMaterialTokens;
 }

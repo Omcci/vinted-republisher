@@ -62,6 +62,32 @@ try {
   console.warn("[Vinted Republisher] webRequest CSRF capture unavailable:", error);
 }
 
+const draftNotificationTabs = new Map();
+
+try {
+  if (chrome.notifications?.onClicked) {
+    chrome.notifications.onClicked.addListener((notifId) => {
+      const tabId = draftNotificationTabs.get(notifId);
+      if (tabId) {
+        chrome.tabs.update(tabId, { active: true }, (tab) => {
+          if (tab?.windowId) {
+            chrome.windows.update(tab.windowId, { focused: true });
+          }
+        });
+        draftNotificationTabs.delete(notifId);
+      }
+    });
+  }
+
+  if (chrome.notifications?.onClosed) {
+    chrome.notifications.onClosed.addListener((notifId) => {
+      draftNotificationTabs.delete(notifId);
+    });
+  }
+} catch (e) {
+  console.warn("[Background] Notification listeners error:", e);
+}
+
 chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
   (async () => {
     try {
@@ -169,23 +195,56 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
         }
 
         case "openDraftAfterImport": {
-          // Popup already wrote storage — just navigate to /items/new.
+          // Popup already wrote storage — navigate to /items/new (support mode discret / background).
           const draftUrl = "https://www.vinted.fr/items/new";
+          const inBackground = Boolean(req.openInBackground || req.settings?.openInBackground);
           let tabId = null;
-          try {
-            tabId = await resolveActiveTabId();
-            const tab = await chrome.tabs.get(tabId);
-            if (tab?.url && /vinted\./i.test(tab.url)) {
-              await chrome.tabs.update(tabId, { url: draftUrl });
-            } else {
-              const created = await chrome.tabs.create({ url: draftUrl });
+          if (inBackground) {
+            const created = await chrome.tabs.create({ url: draftUrl, active: false });
+            tabId = created.id;
+          } else {
+            try {
+              tabId = await resolveActiveTabId();
+              const tab = await chrome.tabs.get(tabId);
+              if (tab?.url && /vinted\./i.test(tab.url)) {
+                await chrome.tabs.update(tabId, { url: draftUrl });
+              } else {
+                const created = await chrome.tabs.create({ url: draftUrl, active: true });
+                tabId = created.id;
+              }
+            } catch (_) {
+              const created = await chrome.tabs.create({ url: draftUrl, active: true });
               tabId = created.id;
             }
-          } catch (_) {
-            const created = await chrome.tabs.create({ url: draftUrl });
-            tabId = created.id;
           }
           sendResponse({ success: true, tabId, itemId: req.itemId || null });
+          return;
+        }
+
+        case "NOTIFY_DRAFT_READY": {
+          const notifId = `vinted_draft_${Date.now()}`;
+          const senderTabId = sender?.tab?.id || null;
+          const draftTitle = req.title || "Nouvelle annonce";
+
+          if (senderTabId) {
+            draftNotificationTabs.set(notifId, senderTabId);
+          }
+
+          try {
+            if (chrome.notifications?.create) {
+              chrome.notifications.create(notifId, {
+                type: "basic",
+                iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+                title: "Vinted Republication PRO",
+                message: `✅ Brouillon prêt en arrière-plan : "${draftTitle.slice(0, 50)}". Cliquez pour vérifier ou publier !`,
+                priority: 2,
+              });
+            }
+          } catch (err) {
+            console.warn("[Background] Erreur notification:", err);
+          }
+
+          sendResponse({ success: true });
           return;
         }
 
@@ -567,6 +626,7 @@ async function persistImportedBackupAndOpenDraft(backup, settings = {}) {
         allowDestructiveRepublish: false,
         autoSave: settings.autoSave !== false,
         imageSettings: null,
+        openInBackground: Boolean(settings.openInBackground),
       },
       files: draftFiles,
     },
@@ -591,19 +651,25 @@ async function persistImportedBackupAndOpenDraft(backup, settings = {}) {
   await chrome.storage.local.set({ [REPUBLISH_BACKUP_INDEX_KEY]: nextIndex });
 
   const draftUrl = "https://www.vinted.fr/items/new";
+  const inBackground = Boolean(settings.openInBackground);
   let tabId = null;
-  try {
-    tabId = await resolveActiveTabId();
-    const tab = await chrome.tabs.get(tabId);
-    if (tab?.url && /vinted\./i.test(tab.url)) {
-      await chrome.tabs.update(tabId, { url: draftUrl });
-    } else {
-      const created = await chrome.tabs.create({ url: draftUrl });
+  if (inBackground) {
+    const created = await chrome.tabs.create({ url: draftUrl, active: false });
+    tabId = created.id;
+  } else {
+    try {
+      tabId = await resolveActiveTabId();
+      const tab = await chrome.tabs.get(tabId);
+      if (tab?.url && /vinted\./i.test(tab.url)) {
+        await chrome.tabs.update(tabId, { url: draftUrl });
+      } else {
+        const created = await chrome.tabs.create({ url: draftUrl, active: true });
+        tabId = created.id;
+      }
+    } catch (_) {
+      const created = await chrome.tabs.create({ url: draftUrl, active: true });
       tabId = created.id;
     }
-  } catch (_) {
-    const created = await chrome.tabs.create({ url: draftUrl });
-    tabId = created.id;
   }
 
   return {

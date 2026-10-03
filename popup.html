@@ -268,6 +268,13 @@
           </button>
         </div>
 
+        <div class="vault-mode-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 2px;margin-top:6px;font-size:11px;color:var(--color-text-muted);">
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;">
+            <input type="checkbox" id="vaultBackgroundToggle" checked>
+            <span>🤫 <strong>Mode discret</strong> (pré-remplit en arrière-plan sans basculer d'onglet)</span>
+          </label>
+        </div>
+
         <!-- Zone d'importation glisser-déposer (repliable) -->
         <div id="importZoneWrapper" class="import-zone-wrapper" style="display:none;">
           <div class="drop-zone" id="backupDropZone" tabindex="0" role="button" aria-label="Déposer un backup JSON ici">
@@ -464,6 +471,14 @@
             <div class="anti-dup-field-group">
               <textarea id="antiDupNewDesc" rows="5" class="form-input anti-dup-textarea" placeholder="Description reformulée avec puces..."></textarea>
             </div>
+          </div>
+
+          <!-- 4. MODE DISCRET ARRIÈRE-PLAN -->
+          <div class="anti-dup-section" style="padding: 10px 14px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+            <label class="anti-dup-checkbox-label" style="font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; user-select: none;">
+              <input type="checkbox" id="antiDupBackgroundCheck" checked>
+              <span>🤫 <strong>Pré-remplir en arrière-plan</strong> (mode discret : vous restez sur votre page sans interruption)</span>
+            </label>
           </div>
         </div>
 
