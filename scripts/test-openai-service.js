@@ -47,12 +47,12 @@ async function runTests() {
             message: {
               content: JSON.stringify({
                 titles: [
-                  "Peluche Chien Shiba Inu Mameshiba Japon Amuse",
+                  "✨ **Peluche Chien Shiba Inu** Mameshiba Japon Amuse",
                   "Mameshiba Sankyodai Chien Peluche Import Japon"
                 ],
                 descriptions: [
-                  "✨ Superbe peluche Mameshiba importée du Japon.\n\n• État : Neuf sans étiquette\n• Marque : Amuse\n\n📦 Expédition soignée sous 24h.",
-                  "🧸 Peluche Chien Shiba Inu Amuse authentique.\n\n• Condition : Neuf sans étiquette\n\nN'hésitez pas si vous avez des questions !"
+                  "✨ Superbe peluche Mameshiba importée du Japon.\n\n- **État** : Neuf sans étiquette\n- **Marque** : Amuse\n\n📦 Expédition soignée sous 24h.",
+                  "Peluche Chien Shiba Inu Amuse authentique.\n\n- Condition : Neuf sans étiquette\n\nN'hésitez pas si vous avez des questions !"
                 ]
               }),
             },
@@ -77,17 +77,25 @@ async function runTests() {
 
     assert(Array.isArray(outcome.titles));
     assert.strictEqual(outcome.titles.length, 2);
-    assert(outcome.titles[0].includes("Shiba Inu"));
+    // Vérification : aucun markdown ** ni émoji dans le titre
+    assert(!outcome.titles[0].includes("**"), "Le titre ne doit pas contenir de markdown **");
+    assert(!outcome.titles[0].includes("✨"), "Le titre ne doit pas contenir d'émoji ✨");
+    assert(outcome.titles[0].includes("Peluche Chien Shiba Inu"));
+
     assert(Array.isArray(outcome.descriptions));
     assert.strictEqual(outcome.descriptions.length, 2);
-    assert(outcome.descriptions[0].includes("Mameshiba"));
-    assert.strictEqual(outcome.model, "gpt-4o-mini");
-    console.log("✓ Reformulation OpenAI exécutée avec succès via le service :");
-    console.log("  - Titres générés :", outcome.titles);
-    console.log("  - Descriptions générées :", outcome.descriptions.length);
+    // Vérification : aucun markdown ** ni émoji dans la description
+    assert(!outcome.descriptions[0].includes("**"), "La description ne doit pas contenir de markdown **");
+    assert(!outcome.descriptions[0].includes("📦"), "La description ne doit pas contenir d'émoji 📦");
+    assert(!outcome.descriptions[0].includes("✨"), "La description ne doit pas contenir d'émoji ✨");
+    assert(outcome.descriptions[0].includes("- État : Neuf sans étiquette"));
+    console.log("✓ Nettoyage anti-markdown et anti-émoji validé avec succès (aucun astérisque, aucun émoji).");
+    console.log("  - Titres nettoyés :", outcome.titles);
+    console.log("  - Description 1 nettoyée :\n", outcome.descriptions[0]);
   } finally {
     global.fetch = originalFetch;
   }
+
 
   console.log("\n=== Test 4: Gestion d'erreur OpenAI (Mock HTTP 401) ===");
   global.fetch = async () => ({

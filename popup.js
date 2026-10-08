@@ -2716,8 +2716,12 @@ function generateTitleVariations(originalTitle, item = {}) {
 
     const unique = Array.from(new Set(variations.filter(v => v && v !== raw)));
     if (!unique.length) {
-        unique.push(formatTitle(`${raw} ✨`));
-        unique.push(formatTitle(`Authentique ${raw}`));
+        unique.push(formatTitle(raw));
+        if (brand && !raw.toLowerCase().includes(brand.toLowerCase())) {
+            unique.push(formatTitle(`${brand} ${raw}`));
+        } else {
+            unique.push(formatTitle(`Article ${raw}`));
+        }
     }
 
     return unique;
@@ -2730,6 +2734,7 @@ function generateDescriptionVariations(originalDesc, item = {}) {
     const title = String(item.title || '').trim();
     const colors = Array.isArray(item.colors) ? item.colors.join(', ') : String(item.colors || '');
     const material = String(item.material || '').trim();
+    const size = String(item.size || '').trim();
 
     let cleanBody = raw
         .replace(/^(bonjour|bonsoir|salut|hello)[^.\n]*[.\n]*/i, '')
@@ -2738,51 +2743,54 @@ function generateDescriptionVariations(originalDesc, item = {}) {
 
     let enrichedCondition = condition;
     if (condition.toLowerCase().includes('neuf sans étiquette')) {
-        enrichedCondition = 'Article neuf, jamais utilisé/porté (sans étiquette)';
+        enrichedCondition = 'Neuf sans étiquette';
     } else if (condition.toLowerCase().includes('très bon état')) {
-        enrichedCondition = 'Très bon état général, propre et soigné';
+        enrichedCondition = 'Très bon état';
     } else if (condition.toLowerCase().includes('bon état')) {
-        enrichedCondition = 'Bon état d\'usage';
+        enrichedCondition = 'Bon état';
     } else if (condition.toLowerCase().includes('neuf avec étiquette')) {
-        enrichedCondition = 'Neuf avec son étiquette d\'origine';
+        enrichedCondition = 'Neuf avec étiquette';
     }
 
     const variations = [];
 
-    // Variation 1: Clean Pro bullet points with Sparkle hook
-    variations.push(`✨ Belle trouvaille disponible :
+    // Variation 1 : Sobre et structurée avec tirets simples
+    variations.push(`Article : ${title}
 
-• Présentation : ${cleanBody || title}
-${enrichedCondition ? `• État : ${enrichedCondition}` : ''}
-${brand ? `• Marque : ${brand}` : ''}
-${colors ? `• Couleur(s) : ${colors}` : ''}
-${material ? `• Matière : ${material}` : ''}
+${cleanBody}
 
-📦 Expédition rapide et emballage très soigné sous 24h/48h.
-💬 N'hésitez pas si vous avez la moindre question ou besoin de photos complémentaires !`);
+- État : ${enrichedCondition || 'Voir photos'}
+${brand ? `- Marque : ${brand}` : ''}
+${size ? `- Taille : ${size}` : ''}
+${colors ? `- Couleur : ${colors}` : ''}
+${material ? `- Matière : ${material}` : ''}
 
-    // Variation 2: Warm casual bullet points
-    variations.push(`🧸 En vente : ${title}
+Envoi rapide sous 24h à 48h dans un emballage soigné.
+N'hésitez pas si vous avez des questions.`);
 
-• Détails de l'article : ${cleanBody || 'Voir photos détaillées.'}
-${enrichedCondition ? `• Condition : ${enrichedCondition}` : ''}
-${brand ? `• Fabricant / Marque : ${brand}` : ''}
-${colors ? `• Coloris : ${colors}` : ''}
+    // Variation 2 : Directe et factuelle
+    variations.push(`A vendre : ${title}
 
-⭐ Envoi rapide, propre et protégé.
-N'hésitez pas à jeter un œil à mon dressing pour faire des lots et économiser sur les frais de port !`);
+${cleanBody || 'Détails visibles sur les photos.'}
 
-    // Variation 3: Minimalist bullet points
-    variations.push(`Je propose à la vente cet article :
+- Marque : ${brand || 'Non spécifiée'}
+- État : ${enrichedCondition || 'Conforme aux photos'}
+${size ? `- Taille : ${size}` : ''}
+${colors ? `- Coloris : ${colors}` : ''}
 
-▪️ Description : ${cleanBody || title}
-${enrichedCondition ? `▪️ État : ${enrichedCondition}` : ''}
-${brand ? `▪️ Marque : ${brand}` : ''}
-${material ? `▪️ Composition : ${material}` : ''}
+Envoi soigné. Réductions possibles sur les lots.`);
 
-🚚 Envoi rapide et soigné garanti.`);
+    // Variation 3 : Synthétique
+    variations.push(`${cleanBody || title}
 
-    return variations;
+- État : ${enrichedCondition || 'Voir description'}
+${brand ? `- Marque : ${brand}` : ''}
+${size ? `- Taille : ${size}` : ''}
+${material ? `- Matière : ${material}` : ''}
+
+Envoi rapide et soigné garanti.`);
+
+    return variations.map(v => v.replace(/\n{3,}/g, '\n\n').trim());
 }
 
 async function triggerAiListingReformulation(isManual = false) {

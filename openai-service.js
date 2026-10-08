@@ -127,8 +127,37 @@ async function testOpenAiApiKey(apiKey) {
 }
 
 /**
+ * Nettoie le texte pour Vinted :
+ * - Supprime TOUT markdown (gras, italique, code, titres) car Vinted affiche du texte brut sans mise en forme.
+ * - Supprime TOUS les émojis (pour un rendu sobre, naturel et humain).
+ * - Normalise les listes avec des tirets standards "- ".
+ * @param {string} text
+ * @returns {string}
+ */
+function sanitizeVintedText(text) {
+  if (!text) return "";
+  return String(text)
+    // Supprime gras et italique markdown (**texte** -> texte, *texte* -> texte, __texte__ -> texte, _texte_ -> texte)
+    .replace(/\*\*([^*]+)\*\*/g, "$1")
+    .replace(/\*([^*]+)\*/g, "$1")
+    .replace(/__([^_]+)__/g, "$1")
+    .replace(/_([^_]+)_/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .replace(/^#+\s*/gm, "")
+    // Supprime tous les emojis (unicode symboles, pictogrammes, emoticons)
+    .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}]/gu, "")
+    // Normalise les puces (•, ▪, *, ⁃, ►) en tiret standard "- "
+    .replace(/^[ \t]*[•▪*⁃►▸][ \t]*/gm, "- ")
+    // Nettoie les espaces en fin de ligne
+    .replace(/[ \t]+$/gm, "")
+    // Réduit les sauts de ligne multiples (> 2) à un double saut de ligne
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
  * Reformule le titre et la description via OpenAI Chat Completions.
- * Génère des variations riches, humaines et percutantes tout en conservant les faits exacts.
+ * Génère des variations sobres, fidèles et naturelles sans markdown ni émojis.
  *
  * @param {object} params
  * @param {string} params.apiKey
@@ -157,25 +186,36 @@ async function callOpenAiListingReformulation({
   const size = String(item.size || "").trim();
   const price = item.price ? `${item.price} €` : "";
 
-  const systemPrompt = `Tu es un expert du commerce d'occasion sur la plateforme Vinted.
-Ta mission est de reformuler le titre et la description d'une annonce pour briser l'empreinte algorithmique de doublon (anti-shadowban Vinted) tout en améliorant l'attrait et la conversion commerciale.
+  const systemPrompt = `Tu es un assistant spécialisé dans la reformulation sobre et directe d'annonces d'occasion sur Vinted.
+Ta mission est de reformuler le titre et la description pour briser l'empreinte de doublon (anti-doublon Vinted) tout en restant 100% fidèle à l'annonce originale.
 
-RÈGLES D'OR :
-1. Titre :
-   - Génère 2 ou 3 variantes de titres percutants, naturels et optimisés pour la barre de recherche Vinted.
-   - Longueur maximale : 85 caractères par titre (Vinted limite à 100 max).
-   - Inclus la marque, le modèle/type d'article et les mots-clés essentiels.
-2. Description :
-   - Génère 2 variantes de descriptions soignées, chaleureuses et faciles à parcourir.
+RÈGLES STRICTES ET NON NÉGOCIABLES :
+1. AUCUN MARKDOWN : Vinted n'interprète PAS le Markdown. Il affiche les astérisques en clair, ce qui est laid et non professionnel.
+   - INTERDICTION ABSOLUE d'utiliser du gras (**mot**), de l'italique (*mot* ou _mot_) ou des titres (#).
+   - Rédige EXCLUSIVEMENT en texte brut. Pour les listes, utilise UNIQUEMENT le tiret standard : "- ".
+2. AUCUN ÉMOJI :
+   - INTERDICTION ABSOLUE d'inclure des émojis (aucun colis, aucune étoile, aucune étincelle, aucun cœur, etc.). Texte pur uniquement.
+3. AUCUN SUPERLATIF NI TON PUBLICITAIRE :
+   - INTERDICTION ABSOLUE d'employer des phrases de vente ("Offrez-vous...", "pièce d'exception", "look chic et décontracté", "pour un confort optimal", "superbe", "magnifique", "craquez pour").
+   - Adopte un ton sobre, neutre, simple et factuel, exactement comme un particulier qui revend simplement un article de son dressing.
+4. FIDÉLITÉ STRICTE AUX FAITS DE L'ANNONCE ORIGINALE :
+   - Ne JAMAIS rien inventer.
+   - Conserve scrupuleusement les défauts ou particularités signalés dans la description originale (par exemple : légère trace d'usure, décoloration sous semelle, vendu avec dustbag, etc.).
+5. TITRE (2 ou 3 variantes) :
+   - Court, naturel et optimisé pour la barre de recherche Vinted (maximum 85 caractères).
+   - Mentionne la marque, le modèle/type d'article et la couleur ou taille si pertinent.
+6. DESCRIPTION (2 variantes) :
    - Structure type :
-     * Phrase d'accroche valorisant l'article.
-     * Puces structurées reprenant fidèlement les détails : État, Marque, Matière, Couleur, Taille (si disponibles).
-     * Formule de réassurance (envoi rapide sous 24/48h, emballage soigné).
-     * Invitation polie aux questions ou aux réductions sur les lots du dressing.
-3. VÉRACITÉ STRICTE :
-   - Ne JAMAIS inventer d'informations : base-toi UNIQUEMENT sur les données fournies (marque, état, couleur, matière, taille).
-4. FORMAT DE SORTIE :
-   - Réponds STRICTEMENT sous format JSON valide avec la structure suivante :
+     * 1 courte phrase d'introduction sobre et factuelle (ex: "Je vends cette paire de baskets Gucci." ou "Baskets Gucci en taille 38.").
+     * Les caractéristiques sous forme de liste avec tiret simple :
+       - Marque : ...
+       - Taille : ...
+       - État : ...
+       - Couleur : ...
+       - Matière : ...
+       - Détails : (mentionner les défauts réels ou accessoires inclus signalés dans l'annonce)
+     * 1 courte phrase de conclusion sobre (ex: "Envoi rapide sous 24h à 48h dans un emballage soigné. N'hésitez pas si vous avez des questions.").
+7. FORMAT DE RÉPONSE STRICTEMENT JSON :
    {
      "titles": ["Variante 1", "Variante 2"],
      "descriptions": ["Variante 1", "Variante 2"]
@@ -204,8 +244,8 @@ RÈGLES D'OR :
         { role: "system", content: systemPrompt },
         { role: "user", content: JSON.stringify(userPayload) },
       ],
-      temperature: 0.7,
-      max_tokens: 900,
+      temperature: 0.5,
+      max_tokens: 800,
       response_format: { type: "json_object" },
     }),
   });
@@ -238,12 +278,12 @@ RÈGLES D'OR :
   const rawDescriptions = Array.isArray(parsed.descriptions) ? parsed.descriptions : [];
 
   const titles = rawTitles
-    .map((t) => String(t || "").replace(/\s+/g, " ").trim())
+    .map((t) => sanitizeVintedText(t).replace(/\s+/g, " ").trim())
     .filter(Boolean)
     .map((t) => (t.length > 95 ? t.slice(0, 92) + "..." : t));
 
   const descriptions = rawDescriptions
-    .map((d) => String(d || "").trim())
+    .map((d) => sanitizeVintedText(d))
     .filter(Boolean);
 
   if (!titles.length && !descriptions.length) {
@@ -257,6 +297,7 @@ RÈGLES D'OR :
     usage: data.usage || null,
   };
 }
+
 
 // Exports pour navigateur et Node.js (tests)
 if (typeof window !== "undefined") {
