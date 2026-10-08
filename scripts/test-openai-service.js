@@ -52,7 +52,7 @@ async function runTests() {
                 ],
                 descriptions: [
                   "✨ Superbe peluche Mameshiba importée du Japon.\n\n- **État** : Neuf sans étiquette\n- **Marque** : Amuse\n\n📦 Expédition soignée sous 24h.",
-                  "Peluche Chien Shiba Inu Amuse authentique.\n\n- Condition : Neuf sans étiquette\n\nN'hésitez pas si vous avez des questions !"
+                  "Je vends ces baskets Gucci GG low en taille 38. - Marque : Gucci - Taille : 38 - État : Bon état - Couleur : Rose - Matière : Cuir, Coton - Détails : Décoloration sous la semelle visible sur les photos, vendu avec dust bag. Envoi rapide sous 24h à 48h dans un emballage soigné. N'hésitez pas si vous avez des questions."
                 ]
               }),
             },
@@ -61,6 +61,7 @@ async function runTests() {
       }),
     };
   };
+
 
   try {
     const outcome = await callOpenAiListingReformulation({
@@ -92,7 +93,12 @@ async function runTests() {
     console.log("✓ Nettoyage anti-markdown et anti-émoji validé avec succès (aucun astérisque, aucun émoji).");
     console.log("  - Titres nettoyés :", outcome.titles);
     console.log("  - Description 1 nettoyée :\n", outcome.descriptions[0]);
+    console.log("  - Description 2 nettoyée (Gucci collapsed string) :\n" + outcome.descriptions[1]);
+    assert(outcome.descriptions[1].includes("\n- Marque : Gucci"));
+    assert(outcome.descriptions[1].includes("\n- Taille : 38"));
+    assert(outcome.descriptions[1].includes("\n\nEnvoi rapide"));
   } finally {
+
     global.fetch = originalFetch;
   }
 

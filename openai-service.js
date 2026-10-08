@@ -136,7 +136,7 @@ async function testOpenAiApiKey(apiKey) {
  */
 function sanitizeVintedText(text) {
   if (!text) return "";
-  return String(text)
+  let clean = String(text)
     // Supprime gras et italique markdown (**texte** -> texte, *texte* -> texte, __texte__ -> texte, _texte_ -> texte)
     .replace(/\*\*([^*]+)\*\*/g, "$1")
     .replace(/\*([^*]+)\*/g, "$1")
@@ -146,13 +146,27 @@ function sanitizeVintedText(text) {
     .replace(/^#+\s*/gm, "")
     // Supprime tous les emojis (unicode symboles, pictogrammes, emoticons)
     .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1FA00}-\u{1FAFF}\u{FE00}-\u{FE0F}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}]/gu, "")
+    // Nettoie les espaces en début et fin de chaque ligne (notamment après suppression des émojis)
+    .replace(/^[ \t]+/gm, "")
+    .replace(/[ \t]+$/gm, "")
     // Normalise les puces (•, ▪, *, ⁃, ►) en tiret standard "- "
     .replace(/^[ \t]*[•▪*⁃►▸][ \t]*/gm, "- ")
-    // Nettoie les espaces en fin de ligne
+    // Si des puces sont collées sur la même ligne (ex: "intro - Marque : ... - Taille : ..."), force un saut de ligne
+    .replace(/([^\n])\s+-\s+/g, "$1\n- ")
+    // S'assure d'un saut de ligne double entre l'introduction et la première puce
+    .replace(/^([^-]+?)\n-\s+/m, "$1\n\n- ")
+    // S'assure d'un saut de ligne double entre la dernière puce et la conclusion
+    .replace(/(\n-[^\n]+?\.)\s+([A-ZÀ-Ÿ][^\n-]*?(?:envoi|expédition|envoie|n'hésitez|n'hesitez|remise|disponible|colis)[^\n]*)/gi, "$1\n\n$2")
+    // S'assure d'un saut de ligne avant les formules de politesse de fin
+    .replace(/([^\n]+?\.)\s+(N'hésitez|N'hesitez|Si vous avez)/gi, "$1\n$2")
+    // Nettoie les espaces en fin de ligne résiduels
     .replace(/[ \t]+$/gm, "")
     // Réduit les sauts de ligne multiples (> 2) à un double saut de ligne
     .replace(/\n{3,}/g, "\n\n")
     .trim();
+
+  return clean;
+
 }
 
 /**
@@ -205,21 +219,27 @@ RÈGLES STRICTES ET NON NÉGOCIABLES :
    - Court, naturel et optimisé pour la barre de recherche Vinted (maximum 85 caractères).
    - Mentionne la marque, le modèle/type d'article et la couleur ou taille si pertinent.
 6. DESCRIPTION (2 variantes) :
+   - SAUTS DE LIGNE OBLIGATOIRES DANS LE TEXTE :
+     Chaque tiret "- " DOIT être sur sa propre ligne avec un saut de ligne réel (\\n).
+     Sépare l'introduction, la liste de puces et la conclusion par un double saut de ligne (\\n\\n).
    - Structure type :
-     * 1 courte phrase d'introduction sobre et factuelle (ex: "Je vends cette paire de baskets Gucci." ou "Baskets Gucci en taille 38.").
-     * Les caractéristiques sous forme de liste avec tiret simple :
-       - Marque : ...
-       - Taille : ...
-       - État : ...
-       - Couleur : ...
-       - Matière : ...
-       - Détails : (mentionner les défauts réels ou accessoires inclus signalés dans l'annonce)
-     * 1 courte phrase de conclusion sobre (ex: "Envoi rapide sous 24h à 48h dans un emballage soigné. N'hésitez pas si vous avez des questions.").
+     1 courte phrase d'introduction sobre et factuelle (ex: "Je vends ces baskets Gucci en taille 38.").
+     \\n\\n
+     - Marque : ...\\n
+     - Taille : ...\\n
+     - État : ...\\n
+     - Couleur : ...\\n
+     - Matière : ...\\n
+     - Détails : (mentionner les défauts réels ou accessoires inclus signalés dans l'annonce)\\n
+     \\n\\n
+     Envoi rapide sous 24h à 48h dans un emballage soigné.\\n
+     N'hésitez pas si vous avez des questions.
 7. FORMAT DE RÉPONSE STRICTEMENT JSON :
    {
      "titles": ["Variante 1", "Variante 2"],
-     "descriptions": ["Variante 1", "Variante 2"]
+     "descriptions": ["Variante 1\\n\\n- Marque : ...\\n- Taille : ...", "Variante 2"]
    }`;
+
 
   const userPayload = {
     titre_actuel: title || "",
