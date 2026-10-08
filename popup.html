@@ -220,6 +220,66 @@
         <div class="logs-stream" id="logsContainer"></div>
       </div>
 
+      <!-- Accordéon : Intelligence Artificielle (OpenAI) -->
+      <details class="accordion-card" id="aiConfigAccordion">
+        <summary class="accordion-header">
+          <div class="accordion-title-group">
+            <span class="accordion-icon">✨</span>
+            <div>
+              <div class="accordion-title">Intelligence Artificielle (OpenAI)</div>
+              <div class="accordion-desc">Reformulation subtile & naturelle des annonces</div>
+            </div>
+          </div>
+          <span class="accordion-arrow">›</span>
+        </summary>
+        <div class="accordion-body">
+          <div class="toggle-row">
+            <span class="toggle-label">Activer l'IA pour le Bouclier Anti-Doublon</span>
+            <label class="switch-control">
+              <input type="checkbox" id="aiEnabledToggle">
+              <span class="slider"></span>
+            </label>
+          </div>
+          <p class="helper-text" style="margin-bottom:12px;">
+            Utilise l'API OpenAI (modèle <strong>gpt-4o-mini</strong>) pour reformuler vos titres et descriptions avec finesse tout en respectant scrupuleusement les détails réels de l'article. Coût dérisoire (~0,00008 $ / annonce).
+          </p>
+
+          <div class="setting-field" style="margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <label for="aiApiKeyInput" style="font-size:11px;font-weight:600;">Clé API OpenAI</label>
+              <button type="button" id="aiToggleKeyVisibilityBtn" class="btn-link" style="font-size:10.5px;">Afficher</button>
+            </div>
+            <input type="password" id="aiApiKeyInput" class="form-input" placeholder="sk-proj-..." autocomplete="off">
+          </div>
+
+          <div class="settings-grid" style="margin-bottom:10px;">
+            <div class="setting-field">
+              <label for="aiModelSelect">Modèle LLM</label>
+              <select id="aiModelSelect" class="form-select">
+                <option value="gpt-4o-mini" selected>gpt-4o-mini (conseillé)</option>
+                <option value="gpt-4o">gpt-4o (haute précision)</option>
+                <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
+              </select>
+            </div>
+            <div class="setting-field" style="display:flex;flex-direction:column;justify-content:flex-end;">
+              <button type="button" id="aiTestKeyBtn" class="btn btn-sm btn-ghost" style="width:100%;height:32px;">
+                ⚡ Tester la clé
+              </button>
+            </div>
+          </div>
+
+          <div class="toggle-row" style="margin-top:6px;">
+            <span class="toggle-label" style="font-size:11.5px;">Génération IA automatique à l'ouverture du bouclier</span>
+            <label class="switch-control">
+              <input type="checkbox" id="aiAutoGenerateCheck" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+
+          <div id="aiStatusMessage" class="helper-text" style="margin-top:8px;font-weight:500;"></div>
+        </div>
+      </details>
+
       <!-- Accordéon : Outils & Diagnostic (replié par défaut) -->
       <details class="accordion-card accordion-muted" id="dxAccordion">
         <summary class="accordion-header">
@@ -410,6 +470,21 @@
           <span>🛡️ Protection Vinted : Casse les 3 empreintes (Couverture + Titre + Description)</span>
         </div>
 
+        <!-- BANDEAU IA (OPENAI) -->
+        <div class="anti-dup-ai-banner" id="antiDupAiBanner">
+          <div class="anti-dup-ai-left">
+            <span class="anti-dup-ai-sparkle">✨</span>
+            <div class="anti-dup-ai-textgroup">
+              <strong id="antiDupAiBadgeTitle">Reformulation IA (OpenAI)</strong>
+              <p id="antiDupAiBadgeSubtitle" class="anti-dup-ai-sub">Titres & descriptions plus naturels et humains</p>
+            </div>
+          </div>
+          <button type="button" id="antiDupMagicAiBtn" class="btn btn-sm btn-ai">
+            <span class="spinner" id="antiDupAiSpinner" hidden></span>
+            <span id="antiDupMagicAiBtnText">✨ Générer avec l'IA</span>
+          </button>
+        </div>
+
         <div class="anti-dup-body">
           <!-- 1. PHOTOS & COUVERTURE -->
           <div class="anti-dup-section">
@@ -447,7 +522,10 @@
               <span class="anti-dup-step-badge">2</span>
               <div class="anti-dup-header-flex">
                 <h4>Titre reformulé (Anti-doublon textuel)</h4>
-                <button type="button" id="antiDupCycleTitleBtn" class="btn-link" title="Générer une autre variante">🎲 Autre variante</button>
+                <div class="anti-dup-header-actions">
+                  <button type="button" id="antiDupAiTitleBtn" class="btn-link btn-ai-link" title="Générer un titre avec l'IA">✨ Titre IA</button>
+                  <button type="button" id="antiDupCycleTitleBtn" class="btn-link" title="Générer une autre variante">🎲 Autre variante</button>
+                </div>
               </div>
             </div>
             <div class="anti-dup-field-group">
@@ -465,7 +543,10 @@
               <span class="anti-dup-step-badge">3</span>
               <div class="anti-dup-header-flex">
                 <h4>Description aérée avec puces & accroche</h4>
-                <button type="button" id="antiDupCycleDescBtn" class="btn-link" title="Changer le style de description">🎲 Autre style</button>
+                <div class="anti-dup-header-actions">
+                  <button type="button" id="antiDupAiDescBtn" class="btn-link btn-ai-link" title="Générer une description avec l'IA">✨ Description IA</button>
+                  <button type="button" id="antiDupCycleDescBtn" class="btn-link" title="Changer le style de description">🎲 Autre style</button>
+                </div>
               </div>
             </div>
             <div class="anti-dup-field-group">
@@ -508,6 +589,7 @@
   </div>
 
   <script src="image-processor.js"></script>
+  <script src="openai-service.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

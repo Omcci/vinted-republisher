@@ -3,6 +3,12 @@
  * Safe by default: creates drafts only, never deletes/publishes originals.
  */
 
+try {
+  importScripts("openai-service.js");
+} catch (e) {
+  // Ignore in environments where importScripts is not available (e.g. Node tests)
+}
+
 const globalState = {
   currentTabId: null,
   currentUrl: null,
@@ -245,6 +251,46 @@ chrome.runtime.onMessage.addListener((req, sender, sendResponse) => {
           }
 
           sendResponse({ success: true });
+          return;
+        }
+
+        case "OPENAI_TEST_KEY": {
+          const fn = typeof testOpenAiApiKey === "function" ? testOpenAiApiKey : window?.openaiService?.testOpenAiApiKey;
+          if (!fn) {
+            sendResponse({ ok: false, error: "Module OpenAI non disponible" });
+            return;
+          }
+          const outcome = await fn(req.apiKey);
+          sendResponse(outcome);
+          return;
+        }
+
+        case "OPENAI_GENERATE_VARIATIONS": {
+          try {
+            const getCfg = typeof getOpenAiConfig === "function" ? getOpenAiConfig : window?.openaiService?.getOpenAiConfig;
+            const callFn = typeof callOpenAiListingReformulation === "function" ? callOpenAiListingReformulation : window?.openaiService?.callOpenAiListingReformulation;
+            if (!callFn) {
+              sendResponse({ success: false, error: "Module OpenAI non disponible" });
+              return;
+            }
+            const config = getCfg ? await getCfg() : {};
+            const apiKey = req.apiKey || config.apiKey;
+            const model = req.model || config.model;
+            if (!apiKey) {
+              sendResponse({ success: false, error: "Clé API OpenAI non configurée." });
+              return;
+            }
+            const variations = await callFn({
+              apiKey,
+              model,
+              title: req.title,
+              description: req.description,
+              item: req.item || {},
+            });
+            sendResponse({ success: true, ...variations });
+          } catch (err) {
+            sendResponse({ success: false, error: err.message || "Erreur de génération OpenAI" });
+          }
           return;
         }
 

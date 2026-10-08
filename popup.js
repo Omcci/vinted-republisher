@@ -184,7 +184,9 @@ function setupEventListeners() {
     setupBackupImportUi();
     setupPhotoStudioListeners();
     setupAntiDuplicateListeners();
+    setupAiConfigListeners();
 }
+
 
 function setupBackupImportUi() {
     const zone = document.getElementById('backupDropZone');
@@ -2338,6 +2340,146 @@ async function handleStudioDownloadAll() {
 }
 
 /* ==========================================================================
+   INTELLIGENCE ARTIFICIELLE (OPENAI) CONFIGURATION & REFORMULATION
+   ========================================================================== */
+
+function setupAiConfigListeners() {
+    const aiEnabledToggle = document.getElementById('aiEnabledToggle');
+    const aiApiKeyInput = document.getElementById('aiApiKeyInput');
+    const aiToggleKeyVisibilityBtn = document.getElementById('aiToggleKeyVisibilityBtn');
+    const aiModelSelect = document.getElementById('aiModelSelect');
+    const aiAutoGenerateCheck = document.getElementById('aiAutoGenerateCheck');
+    const aiTestKeyBtn = document.getElementById('aiTestKeyBtn');
+    const aiStatusMessage = document.getElementById('aiStatusMessage');
+
+    const loadAiConfig = async () => {
+        try {
+            const config = window.openaiService
+                ? await window.openaiService.getOpenAiConfig()
+                : { apiKey: '', model: 'gpt-4o-mini', enabled: false, autoGenerate: true };
+
+            if (aiEnabledToggle) aiEnabledToggle.checked = Boolean(config.enabled);
+            if (aiApiKeyInput) aiApiKeyInput.value = config.apiKey || '';
+            if (aiModelSelect && config.model) aiModelSelect.value = config.model;
+            if (aiAutoGenerateCheck) aiAutoGenerateCheck.checked = config.autoGenerate !== false;
+        } catch (err) {
+            console.warn('[Popup] Erreur chargement config OpenAI:', err);
+        }
+    };
+    loadAiConfig();
+
+    if (aiToggleKeyVisibilityBtn && aiApiKeyInput) {
+        aiToggleKeyVisibilityBtn.addEventListener('click', () => {
+            const isPassword = aiApiKeyInput.type === 'password';
+            aiApiKeyInput.type = isPassword ? 'text' : 'password';
+            aiToggleKeyVisibilityBtn.textContent = isPassword ? 'Masquer' : 'Afficher';
+        });
+    }
+
+    if (aiEnabledToggle) {
+        aiEnabledToggle.addEventListener('change', async (e) => {
+            const isEnabled = e.target.checked;
+            if (window.openaiService) {
+                await window.openaiService.saveOpenAiConfig({ enabled: isEnabled });
+            }
+            if (isEnabled && aiApiKeyInput && !aiApiKeyInput.value.trim()) {
+                if (aiStatusMessage) {
+                    aiStatusMessage.textContent = "💡 N'oubliez pas de renseigner votre clé API OpenAI ci-dessous.";
+                    aiStatusMessage.className = 'helper-text';
+                }
+            } else if (aiStatusMessage && !isEnabled) {
+                aiStatusMessage.textContent = '';
+            }
+        });
+    }
+
+    if (aiApiKeyInput) {
+        let keyTimeout = null;
+        aiApiKeyInput.addEventListener('input', (e) => {
+            clearTimeout(keyTimeout);
+            keyTimeout = setTimeout(async () => {
+                const cleanKey = e.target.value.trim();
+                if (window.openaiService) {
+                    await window.openaiService.saveOpenAiConfig({ apiKey: cleanKey });
+                }
+            }, 400);
+        });
+    }
+
+    if (aiModelSelect) {
+        aiModelSelect.addEventListener('change', async (e) => {
+            if (window.openaiService) {
+                await window.openaiService.saveOpenAiConfig({ model: e.target.value });
+            }
+        });
+    }
+
+    if (aiAutoGenerateCheck) {
+        aiAutoGenerateCheck.addEventListener('change', async (e) => {
+            if (window.openaiService) {
+                await window.openaiService.saveOpenAiConfig({ autoGenerate: e.target.checked });
+            }
+        });
+    }
+
+    if (aiTestKeyBtn && aiApiKeyInput) {
+        aiTestKeyBtn.addEventListener('click', async () => {
+            const rawKey = aiApiKeyInput.value.trim();
+            if (!rawKey) {
+                if (aiStatusMessage) {
+                    aiStatusMessage.textContent = '⚠️ Veuillez renseigner une clé API OpenAI (ex: sk-proj-...).';
+                    aiStatusMessage.className = 'helper-text text-danger';
+                }
+                aiApiKeyInput.focus();
+                return;
+            }
+
+            const originalBtnText = aiTestKeyBtn.innerHTML;
+            aiTestKeyBtn.disabled = true;
+            aiTestKeyBtn.textContent = '⏳ Test de connexion en cours...';
+            if (aiStatusMessage) {
+                aiStatusMessage.textContent = 'Test en cours via OpenAI API (0 token consommé)...';
+                aiStatusMessage.className = 'helper-text';
+            }
+
+            try {
+                const res = window.openaiService
+                    ? await window.openaiService.testOpenAiApiKey(rawKey)
+                    : await new Promise((resolve) => {
+                          chrome.runtime.sendMessage({ action: 'OPENAI_TEST_KEY', apiKey: rawKey }, resolve);
+                      });
+
+                if (res?.ok) {
+                    if (aiStatusMessage) {
+                        aiStatusMessage.textContent = '✅ Connexion réussie ! Clé API valide et opérationnelle.';
+                        aiStatusMessage.className = 'helper-text text-success';
+                    }
+                    if (aiEnabledToggle && !aiEnabledToggle.checked) {
+                        aiEnabledToggle.checked = true;
+                        if (window.openaiService) {
+                            await window.openaiService.saveOpenAiConfig({ enabled: true, apiKey: rawKey });
+                        }
+                    }
+                } else {
+                    if (aiStatusMessage) {
+                        aiStatusMessage.textContent = '❌ Échec : ' + (res?.error || 'Clé API refusée ou quota dépassé.');
+                        aiStatusMessage.className = 'helper-text text-danger';
+                    }
+                }
+            } catch (err) {
+                if (aiStatusMessage) {
+                    aiStatusMessage.textContent = '❌ Erreur de communication : ' + err.message;
+                    aiStatusMessage.className = 'helper-text text-danger';
+                }
+            } finally {
+                aiTestKeyBtn.disabled = false;
+                aiTestKeyBtn.innerHTML = originalBtnText;
+            }
+        });
+    }
+}
+
+/* ==========================================================================
    BOUCLIER ANTI-DOUBLON (REPUBLICATION ANTI-FLAG VINTED)
    ========================================================================== */
 
@@ -2350,6 +2492,10 @@ let antiDupState = {
     titleIndex: 0,
     descVariations: [],
     descIndex: 0,
+    aiTitles: [],
+    aiDescriptions: [],
+    aiLoading: false,
+    aiLoaded: false,
 };
 
 function setupAntiDuplicateListeners() {
@@ -2362,6 +2508,9 @@ function setupAntiDuplicateListeners() {
     const launchBtn = document.getElementById('antiDupLaunchBtn');
     const saveVaultBtn = document.getElementById('antiDupSaveVaultBtn');
     const rawPrefillBtn = document.getElementById('antiDupRawPrefillBtn');
+    const magicAiBtn = document.getElementById('antiDupMagicAiBtn');
+    const aiTitleBtn = document.getElementById('antiDupAiTitleBtn');
+    const aiDescBtn = document.getElementById('antiDupAiDescBtn');
 
     if (!modal) return;
 
@@ -2418,6 +2567,48 @@ function setupAntiDuplicateListeners() {
         });
     }
 
+    if (magicAiBtn) {
+        magicAiBtn.addEventListener('click', () => {
+            triggerAiListingReformulation(true);
+        });
+    }
+
+    if (aiTitleBtn) {
+        aiTitleBtn.addEventListener('click', async () => {
+            if (!antiDupState.aiTitles.length) {
+                await triggerAiListingReformulation(true);
+                return;
+            }
+            const titleInput = document.getElementById('antiDupNewTitle');
+            if (titleInput && antiDupState.aiTitles.length) {
+                const curIdx = antiDupState.aiTitles.indexOf(titleInput.value);
+                const nextIdx = (curIdx + 1) % antiDupState.aiTitles.length;
+                titleInput.value = antiDupState.aiTitles[nextIdx];
+                titleInput.focus();
+                titleInput.classList.add('input-highlight-pulse');
+                setTimeout(() => titleInput.classList.remove('input-highlight-pulse'), 1200);
+            }
+        });
+    }
+
+    if (aiDescBtn) {
+        aiDescBtn.addEventListener('click', async () => {
+            if (!antiDupState.aiDescriptions.length) {
+                await triggerAiListingReformulation(true);
+                return;
+            }
+            const descInput = document.getElementById('antiDupNewDesc');
+            if (descInput && antiDupState.aiDescriptions.length) {
+                const curIdx = antiDupState.aiDescriptions.indexOf(descInput.value);
+                const nextIdx = (curIdx + 1) % antiDupState.aiDescriptions.length;
+                descInput.value = antiDupState.aiDescriptions[nextIdx];
+                descInput.focus();
+                descInput.classList.add('input-highlight-pulse');
+                setTimeout(() => descInput.classList.remove('input-highlight-pulse'), 1200);
+            }
+        });
+    }
+
     if (launchBtn) {
         launchBtn.addEventListener('click', handleApplyAndPrefillVariations);
     }
@@ -2435,6 +2626,7 @@ function setupAntiDuplicateListeners() {
         });
     }
 }
+
 
 function updateAntiDupCoverPreview() {
     const imgEl = document.getElementById('antiDupCoverImg');
@@ -2593,6 +2785,132 @@ ${material ? `▪️ Composition : ${material}` : ''}
     return variations;
 }
 
+async function triggerAiListingReformulation(isManual = false) {
+    if (!antiDupState.backup?.item) return;
+
+    let aiConfig = null;
+    try {
+        aiConfig = window.openaiService ? await window.openaiService.getOpenAiConfig() : null;
+    } catch (_) {}
+
+    const apiKey = aiConfig?.apiKey;
+    const model = aiConfig?.model || 'gpt-4o-mini';
+
+    const aiAccordion = document.getElementById('aiConfigAccordion');
+    const aiKeyInput = document.getElementById('aiApiKeyInput');
+    const magicBtn = document.getElementById('antiDupMagicAiBtn');
+    const magicBtnText = document.getElementById('antiDupMagicAiBtnText');
+    const spinner = document.getElementById('antiDupAiSpinner');
+    const subTitle = document.getElementById('antiDupAiBadgeSubtitle');
+
+    if (!apiKey) {
+        if (isManual) {
+            if (aiAccordion) aiAccordion.open = true;
+            if (aiKeyInput) {
+                aiKeyInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                aiKeyInput.focus();
+            }
+            if (subTitle) {
+                subTitle.textContent = "⚠️ Clé API requise — renseignez-la dans l'accordéon IA ci-dessous";
+                subTitle.style.color = '#dc2626';
+            }
+            addLog('warn', 'Veuillez saisir votre clé API OpenAI dans la section IA pour utiliser cette fonction.');
+        }
+        return;
+    }
+
+    if (antiDupState.aiLoading) return;
+    antiDupState.aiLoading = true;
+
+    if (spinner) spinner.hidden = false;
+    if (magicBtnText) magicBtnText.textContent = '⏳ Analyse IA...';
+    if (magicBtn) magicBtn.disabled = true;
+    if (subTitle) {
+        subTitle.textContent = `Optimisation en cours via ${model}...`;
+        subTitle.style.color = '#7e22ce';
+    }
+
+    try {
+        let result = null;
+        if (window.openaiService) {
+            result = await window.openaiService.callOpenAiListingReformulation({
+                apiKey,
+                model,
+                title: antiDupState.backup.item.title || '',
+                description: antiDupState.backup.item.description || '',
+                item: antiDupState.backup.item,
+            });
+        } else {
+            result = await new Promise((resolve, reject) => {
+                chrome.runtime.sendMessage({
+                    action: 'OPENAI_GENERATE_VARIATIONS',
+                    apiKey,
+                    model,
+                    title: antiDupState.backup.item.title || '',
+                    description: antiDupState.backup.item.description || '',
+                    item: antiDupState.backup.item,
+                }, (res) => {
+                    if (res?.success) resolve(res);
+                    else reject(new Error(res?.error || 'Erreur OpenAI'));
+                });
+            });
+        }
+
+        if (result && (result.titles?.length || result.descriptions?.length)) {
+            antiDupState.aiTitles = result.titles || [];
+            antiDupState.aiDescriptions = result.descriptions || [];
+            antiDupState.aiLoaded = true;
+
+            // Insérer les variantes IA au début du carrousel de variations sans doublon
+            if (antiDupState.aiTitles.length) {
+                antiDupState.titleVariations = [
+                    ...antiDupState.aiTitles,
+                    ...antiDupState.titleVariations.filter(t => !antiDupState.aiTitles.includes(t)),
+                ];
+                antiDupState.titleIndex = 0;
+                const titleInput = document.getElementById('antiDupNewTitle');
+                if (titleInput) {
+                    titleInput.value = antiDupState.titleVariations[0];
+                    titleInput.classList.add('input-highlight-pulse');
+                    setTimeout(() => titleInput.classList.remove('input-highlight-pulse'), 1200);
+                }
+            }
+
+            if (antiDupState.aiDescriptions.length) {
+                antiDupState.descVariations = [
+                    ...antiDupState.aiDescriptions,
+                    ...antiDupState.descVariations.filter(d => !antiDupState.aiDescriptions.includes(d)),
+                ];
+                antiDupState.descIndex = 0;
+                const descInput = document.getElementById('antiDupNewDesc');
+                if (descInput) {
+                    descInput.value = antiDupState.descVariations[0];
+                    descInput.classList.add('input-highlight-pulse');
+                    setTimeout(() => descInput.classList.remove('input-highlight-pulse'), 1200);
+                }
+            }
+
+            if (subTitle) {
+                subTitle.textContent = `✨ Variantes IA prêtes (${antiDupState.aiTitles.length} titres, ${antiDupState.aiDescriptions.length} desc.)`;
+                subTitle.style.color = '#059669';
+            }
+            addLog('success', `✨ Intelligence Artificielle (${model}) : reformulations appliquées avec succès.`);
+        }
+    } catch (err) {
+        console.warn('[Anti-Dup AI] Erreur reformulation:', err);
+        addLog('warn', `Génération IA non disponible (${err.message}). Les variations locales restent actives.`);
+        if (subTitle) {
+            subTitle.textContent = isManual ? `❌ ${err.message}` : 'Variations algorithmiques locales actives';
+            subTitle.style.color = isManual ? '#dc2626' : '#7e22ce';
+        }
+    } finally {
+        antiDupState.aiLoading = false;
+        if (spinner) spinner.hidden = true;
+        if (magicBtnText) magicBtnText.textContent = antiDupState.aiLoaded ? '✨ Régénérer IA' : '✨ Générer avec l\'IA';
+        if (magicBtn) magicBtn.disabled = false;
+    }
+}
+
 async function handleOpenAntiDuplicateModal(itemId) {
     try {
         const cleanId = String(itemId || '').trim();
@@ -2633,8 +2951,12 @@ async function handleOpenAntiDuplicateModal(itemId) {
         antiDupState.itemId = cleanId;
         antiDupState.backup = backup;
         antiDupState.photos = photos;
+        antiDupState.aiTitles = [];
+        antiDupState.aiDescriptions = [];
+        antiDupState.aiLoading = false;
+        antiDupState.aiLoaded = false;
 
-        // Generer les variations de titre et description
+        // Generer les variations algorithmiques immédiates (0ms, 100% stable)
         const titleVars = generateTitleVariations(backup.item?.title, backup.item);
         antiDupState.titleVariations = titleVars;
         antiDupState.titleIndex = 0;
@@ -2671,10 +2993,50 @@ async function handleOpenAntiDuplicateModal(itemId) {
         const modal = document.getElementById('antiDuplicateModal');
         if (modal) modal.hidden = false;
         addLog('success', '🛡️ Bouclier Anti-Doublon prêt : variations générées avec succès.');
+
+        // Mise à jour de l'état du bandeau IA dans la modale
+        const subTitleEl = document.getElementById('antiDupAiBadgeSubtitle');
+        const magicBtnText = document.getElementById('antiDupMagicAiBtnText');
+        const spinner = document.getElementById('antiDupAiSpinner');
+        if (spinner) spinner.hidden = true;
+
+        let aiConfig = null;
+        try {
+            aiConfig = window.openaiService ? await window.openaiService.getOpenAiConfig() : null;
+        } catch (_) {}
+
+        const hasKey = Boolean(aiConfig?.apiKey);
+
+        if (!hasKey) {
+            if (subTitleEl) {
+                subTitleEl.textContent = "💡 Activez l'IA dans les réglages ci-dessous pour des reformulations encore plus naturelles.";
+                subTitleEl.style.color = '#7e22ce';
+            }
+            if (magicBtnText) magicBtnText.textContent = "✨ Configurer l'IA";
+        } else if (!aiConfig?.enabled) {
+            if (subTitleEl) {
+                subTitleEl.textContent = `IA désactivée — Modèle ${aiConfig.model || 'gpt-4o-mini'} configuré.`;
+                subTitleEl.style.color = '#7e22ce';
+            }
+            if (magicBtnText) magicBtnText.textContent = "✨ Activer & Générer";
+        } else {
+            if (subTitleEl) {
+                subTitleEl.textContent = `Modèle ${aiConfig.model || 'gpt-4o-mini'} prêt`;
+                subTitleEl.style.color = '#7e22ce';
+            }
+            if (magicBtnText) magicBtnText.textContent = "✨ Générer avec l'IA";
+
+            if (aiConfig.autoGenerate !== false) {
+                setTimeout(() => {
+                    triggerAiListingReformulation(false);
+                }, 50);
+            }
+        }
     } catch (err) {
         addLog('error', 'Erreur ouverture Bouclier Anti-Doublon: ' + err.message);
     }
 }
+
 
 async function handleApplyAndPrefillVariations() {
     const launchBtn = document.getElementById('antiDupLaunchBtn');

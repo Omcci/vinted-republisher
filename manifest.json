@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Vinted Auto Republisher PRO",
-  "version": "2.2.14",
+  "version": "2.2.15",
   "description": "Automatisation sécurisée, republication et sauvegarde locale des annonces Vinted",
   "icons": {
     "16": "icons/icon16.png",
@@ -21,7 +21,8 @@
   "host_permissions": [
     "https://*.vinted.fr/*",
     "https://*.vinted.com/*",
-    "https://*.vinted.net/*"
+    "https://*.vinted.net/*",
+    "https://api.openai.com/*"
   ],
   "background": {
     "service_worker": "background.js"
