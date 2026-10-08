@@ -87,10 +87,43 @@ async function testOpenAiApiKey(apiKey) {
       return { ok: false, error: msg };
     }
 
-    return { ok: true, message: "Connexion réussie ! Clé API valide et opérationnelle." };
+    // Vérification du quota / solde de crédits (1 token)
+    try {
+      const quotaCheck = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${cleanKey}`,
+        },
+        body: JSON.stringify({
+          model: "gpt-4o-mini",
+          messages: [{ role: "user", content: "ping" }],
+          max_tokens: 1,
+        }),
+      });
+
+      if (!quotaCheck.ok) {
+        let quotaMsg = `Erreur OpenAI (${quotaCheck.status})`;
+        try {
+          const qJson = await quotaCheck.json();
+          if (qJson?.error?.message) quotaMsg = qJson.error.message;
+        } catch (_) {}
+
+        if (quotaMsg.toLowerCase().includes("credit") || quotaMsg.toLowerCase().includes("billing") || quotaCheck.status === 429) {
+          return {
+            ok: false,
+            error: "Clé valide, mais votre compte OpenAI n'a aucun crédit disponible (solde à 0 $). Vous devez ajouter 5 $ sur platform.openai.com/settings/organization/billing pour activer l'API.",
+          };
+        }
+        return { ok: false, error: quotaMsg };
+      }
+    } catch (_) {}
+
+    return { ok: true, message: "Connexion réussie ! Clé API valide et solde de crédits opérationnel." };
   } catch (err) {
     return { ok: false, error: err.message || "Impossible de contacter l'API OpenAI (vérifiez votre connexion)." };
   }
+
 }
 
 /**

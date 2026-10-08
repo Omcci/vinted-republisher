@@ -2900,10 +2900,15 @@ async function triggerAiListingReformulation(isManual = false) {
         console.warn('[Anti-Dup AI] Erreur reformulation:', err);
         addLog('warn', `Génération IA non disponible (${err.message}). Les variations locales restent actives.`);
         if (subTitle) {
-            subTitle.textContent = isManual ? `❌ ${err.message}` : 'Variations algorithmiques locales actives';
-            subTitle.style.color = isManual ? '#dc2626' : '#7e22ce';
+            let userMsg = err.message || 'Erreur OpenAI';
+            if (userMsg.toLowerCase().includes('credit') || userMsg.toLowerCase().includes('billing')) {
+                userMsg = 'Compte OpenAI sans crédit (solde 0 $). Ajoutez 5 $ sur platform.openai.com/billing';
+            }
+            subTitle.textContent = isManual ? `❌ ${userMsg}` : `⚠️ ${userMsg} (variations locales actives)`;
+            subTitle.style.color = '#dc2626';
         }
     } finally {
+
         antiDupState.aiLoading = false;
         if (spinner) spinner.hidden = true;
         if (magicBtnText) magicBtnText.textContent = antiDupState.aiLoaded ? '✨ Régénérer IA' : '✨ Générer avec l\'IA';
