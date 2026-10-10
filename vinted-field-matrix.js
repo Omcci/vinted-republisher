@@ -39,7 +39,7 @@ const FIELD_SPECS = {
     widget: "categorySearch",
     required: true,
     globalInputSelector: "input#catalog-search-input, input[name*='catalog'], input[id*='catalog'][type='text']",
-    committedSelector: "input#catalog, input[name*='catalog']",
+    committedSelector: "#catalog, input#catalog, #catalog_id, input#catalog_id, input[name='catalog_id']",
     domIdPrefixes: ["catalog-"],
   },
   brand: {

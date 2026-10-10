@@ -4188,7 +4188,8 @@ async function continuePendingDomDraftIfNeeded() {
     }
     fileInput.files = dt.files;
     fileInput.dispatchEvent(new Event("change", { bubbles: true }));
-    appendOverlayLog("success", `${dt.files.length} photo(s) envoyée(s) au formulaire Vinted`);
+    const sentCount = fileInput.files?.length || dt.files?.length || draft.files.length;
+    appendOverlayLog("success", `${sentCount} photo(s) envoyée(s) au formulaire Vinted`);
     await sleep(6000);
   } else {
     appendOverlayLog("warning", "Input photo introuvable ou aucune photo préparée");

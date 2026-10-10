@@ -161,6 +161,34 @@ async function adapterCategorySearch(spec, value, draft) {
     : [];
   const expectedCatalogId = String(draft?.catalogId || "").trim();
 
+  // Parse target to extract leaf category and potential department/branches
+  // e.g. "Hommes T-shirts imprimés" -> leaf: "T-shirts imprimés", department: "Hommes"
+  // e.g. "Hommes > Vêtements > T-shirts" -> leaf: "T-shirts", branches: ["Hommes", "Vêtements"]
+  const ROOT_DEPARTMENTS = ["hommes", "femmes", "enfants", "bebe", "bébé", "maison", "animaux", "divertissement"];
+  let parsedLeaf = target;
+  let parsedDepartment = "";
+  if (/[>→/]/.test(target)) {
+    const parts = target.split(/[>→/]/).map((p) => p.trim()).filter(Boolean);
+    if (parts.length > 1) {
+      parsedLeaf = parts[parts.length - 1];
+      parsedDepartment = parts[0];
+    }
+  } else {
+    for (const dept of ROOT_DEPARTMENTS) {
+      const regex = new RegExp(`^${dept}\\s+(.+)`, "i");
+      const m = target.match(regex);
+      if (m && m[1]) {
+        parsedDepartment = dept;
+        parsedLeaf = m[1].trim();
+        break;
+      }
+    }
+  }
+  const normParsedLeaf = normalizeComparableText(parsedLeaf);
+  if (parsedDepartment && !expectedBranches.some((b) => b.includes(normalizeComparableText(parsedDepartment)))) {
+    expectedBranches.unshift(normalizeComparableText(parsedDepartment));
+  }
+
   const label = spec.label;
   let clickedStrongCategoryOption = false;
   let selectedCatalogId = expectedCatalogId || "";
@@ -236,11 +264,11 @@ async function adapterCategorySearch(spec, value, draft) {
 
   const getBranchScore = (text) => {
     const txt = normalizeComparableText(text);
-    if (!txt || !txt.includes(normalizedTarget)) return -1;
+    if (!txt || (!txt.includes(normalizedTarget) && !txt.includes(normParsedLeaf))) return -1;
     if (expectedBranches.length === 0) return 0;
     let score = 0;
     for (const branch of expectedBranches) {
-      if (txt.includes(branch)) score += 1;
+      if (txt.includes(branch)) score += 5;
     }
     const leaf = expectedBranches[expectedBranches.length - 1];
     if (leaf && txt.includes(leaf)) score += 2;
@@ -273,8 +301,11 @@ async function adapterCategorySearch(spec, value, draft) {
     const parts = typeof elOrText === "string"
       ? { heading: normalizeComparableText(elOrText), text: normalizeComparableText(elOrText) }
       : getCategoryCandidateParts(elOrText);
-    if (parts.heading) return parts.heading === normalizedTarget;
-    return parts.text === normalizedTarget || parts.text.startsWith(`${normalizedTarget} `);
+    if (parts.heading) {
+      return parts.heading === normalizedTarget || parts.heading === normParsedLeaf;
+    }
+    return parts.text === normalizedTarget || parts.text === normParsedLeaf ||
+      parts.text.startsWith(`${normParsedLeaf} `) || parts.text.startsWith(`${normalizedTarget} `);
   };
 
   const isStrongBranchMatch = (elOrText) => {
@@ -295,6 +326,7 @@ async function adapterCategorySearch(spec, value, draft) {
   // Helper: find a clickable option inside the open category modal/panel
   const findCategoryOption = (searchTerm) => {
     const normalized = normalizeComparableText(searchTerm);
+    const normLeaf = normParsedLeaf;
     // Look for elements in category suggestion panels (Vinted uses various containers)
     const candidates = Array.from(
       document.querySelectorAll(
@@ -326,7 +358,7 @@ async function adapterCategorySearch(spec, value, draft) {
       .map((el) => {
         const parts = getCategoryCandidateParts(el);
         const txt = parts.text;
-        if (!txt || !txt.includes(normalized)) return null;
+        if (!txt || (!txt.includes(normalized) && !txt.includes(normLeaf))) return null;
         if (txt.length > 420) return null;
         if (!isExactLeafMatch(el) && getCatalogCandidateIdScore(el) === 0) return null;
         const catalogIdScore = getCatalogCandidateIdScore(el);
@@ -367,13 +399,13 @@ async function adapterCategorySearch(spec, value, draft) {
     if (expectedBranches.length > 0) return null;
     const exact = unique.find((el) => {
       const txt = normalizeComparableText(el.textContent || "");
-      return txt && (txt === normalized || txt.startsWith(normalized));
+      return txt && (txt === normalized || txt === normLeaf || txt.startsWith(normLeaf) || txt.startsWith(normalized));
     });
     if (exact) return exact;
 
     const partial = unique.find((el) => {
       const txt = normalizeComparableText(el.textContent || "");
-      return txt && txt.includes(normalized);
+      return txt && (txt.includes(normalized) || txt.includes(normLeaf));
     });
     return partial || null;
   };
@@ -383,13 +415,13 @@ async function adapterCategorySearch(spec, value, draft) {
     const interactiveDescendants = Array.from(option.querySelectorAll("button, a, [role='button'], [tabindex]"))
       .filter((el) => {
         const txt = normalizeComparableText(el.textContent || "");
-        return txt && (txt === normalizedTarget || isStrongBranchMatch(el));
+        return txt && (txt === normalizedTarget || txt === normParsedLeaf || isStrongBranchMatch(el));
       })
       .sort((a, b) => (a.textContent || "").length - (b.textContent || "").length);
     const textDescendants = Array.from(option.querySelectorAll("span, div, p"))
       .filter((el) => {
         const txt = normalizeComparableText(el.textContent || "");
-        return txt && txt === normalizedTarget;
+        return txt && (txt === normalizedTarget || txt === normParsedLeaf);
       })
       .sort((a, b) => (a.textContent || "").length - (b.textContent || "").length);
     const targets = [];
@@ -416,8 +448,8 @@ async function adapterCategorySearch(spec, value, draft) {
       "input[name*='catalog_id']",
       "input[id='catalog_id']",
       "input[id*='catalog_id']",
-      "input[name='catalog']",
-      "input#catalog",
+      "#catalog_id",
+      "#catalog",
     ];
     return selectors.some((selector) => {
       const el = document.querySelector(selector);
@@ -427,13 +459,24 @@ async function adapterCategorySearch(spec, value, draft) {
   };
 
   const hasPostCategoryFieldsRendered = () => {
-    try {
-      const fields = inspectCurrentForm();
-      return ["brand", "condition", "material", "colors", "size", "authenticityProof"]
-        .some((fieldId) => fields.has(fieldId));
-    } catch (_) {
-      return false;
-    }
+    // Check if the form actually has brand, condition, size or color container/inputs rendered
+    const hasBrand = Boolean(
+      document.querySelector("#brand-search-input, #brand, input[name*='brand']") ||
+      (typeof findFieldContainerByLabel === "function" && findFieldContainerByLabel("Marque"))
+    );
+    const hasCondition = Boolean(
+      (typeof findFieldContainerByLabel === "function" && (findFieldContainerByLabel("État") || findFieldContainerByLabel("Etat"))) ||
+      document.querySelector("#status, input[name*='status']")
+    );
+    const hasSize = Boolean(
+      document.querySelector("#size-search-input, #size, input[name*='size']") ||
+      (typeof findFieldContainerByLabel === "function" && findFieldContainerByLabel("Taille"))
+    );
+    const hasColor = Boolean(
+      document.querySelector("#color-search-input, #color, input[name*='color']") ||
+      (typeof findFieldContainerByLabel === "function" && findFieldContainerByLabel("Couleur"))
+    );
+    return hasBrand || hasCondition || hasSize || hasColor;
   };
 
   const validateCategoryCommit = () => {
@@ -444,12 +487,25 @@ async function adapterCategorySearch(spec, value, draft) {
     const selectedNumericCatalogId = selectedCatalogId && /^\d+$/.test(selectedCatalogId);
     const postCategoryFieldsRendered = hasPostCategoryFieldsRendered();
     const domConfirmed = Boolean(selectedNumericCatalogId && !dropdownOpen && postCategoryFieldsRendered);
-    const visibleMatches = Boolean(visible && normalizeComparableText(visible).includes(normalizedTarget) && isStrongBranchMatch(visible));
+    const visibleMatches = Boolean(
+      visible &&
+      (normalizeComparableText(visible).includes(normalizedTarget) || normalizeComparableText(visible).includes(normParsedLeaf)) &&
+      isStrongBranchMatch(visible)
+    );
     const branchConfirmed = expectedBranches.length === 0 || visibleMatches || hasCommittedCatalogId() || clickedStrongCategoryOption || domConfirmed;
-    const primaryMatches = Boolean(primary && isCommittedMatch(primary, target) && !dropdownOpen && branchConfirmed);
-    const committedMatches = Boolean(committed && isCommittedMatch(committed, target) && !dropdownOpen && branchConfirmed);
+    const primaryMatches = Boolean(primary && (isCommittedMatch(primary, target) || isCommittedMatch(primary, parsedLeaf)) && !dropdownOpen && branchConfirmed);
+    const committedMatches = Boolean(
+      committed &&
+      (isCommittedMatch(committed, target) || isCommittedMatch(committed, parsedLeaf)) &&
+      !dropdownOpen &&
+      branchConfirmed &&
+      (hasCommittedCatalogId() || postCategoryFieldsRendered)
+    );
+
+    const hasProof = hasCommittedCatalogId() || domConfirmed || (clickedStrongCategoryOption && !dropdownOpen && postCategoryFieldsRendered) || (visibleMatches && !dropdownOpen) || (committedMatches && !dropdownOpen && postCategoryFieldsRendered);
+
     return {
-      success: hasCommittedCatalogId() || domConfirmed || visibleMatches || primaryMatches || committedMatches,
+      success: Boolean(hasProof && (postCategoryFieldsRendered || hasCommittedCatalogId())),
       dropdownOpen,
       visible,
       committed,
@@ -471,6 +527,16 @@ async function adapterCategorySearch(spec, value, draft) {
     return last;
   };
 
+  const searchQueries = [];
+  if (parsedLeaf && parsedLeaf.toLowerCase() !== target.toLowerCase()) {
+    searchQueries.push(parsedLeaf);
+  }
+  searchQueries.push(target);
+  const leafWords = parsedLeaf.split(/\s+/).filter(Boolean);
+  if (leafWords.length > 1) {
+    searchQueries.push(leafWords.slice(0, 2).join(" "));
+  }
+
   for (let attempt = 1; attempt <= 4; attempt++) {
     const container = findFieldContainerByLabel(label);
     let input = findCategoryInput(container);
@@ -478,6 +544,7 @@ async function adapterCategorySearch(spec, value, draft) {
     const activator = container ? findFieldActivator(label, container) : null;
     logDomDebug(label, `categorySearch attempt ${attempt}`, {
       target,
+      parsedLeaf,
       container: describeElement(container),
       input: describeElement(input),
       activator: describeElement(activator),
@@ -488,7 +555,6 @@ async function adapterCategorySearch(spec, value, draft) {
       clickElementHard(activator);
       await sleep(600);
       input = findCategoryInput(container);
-      // Also check if a dialog/modal just opened with its own search input
       if (!input) {
         const dialogInput = document.querySelector(
           '[role="dialog"] input, [class*="modal"] input[type="text"], ' +
@@ -505,40 +571,47 @@ async function adapterCategorySearch(spec, value, draft) {
       continue;
     }
 
-    input.focus();
-    setNativeInputValue(input, target);
-    await sleep(800);
+    let optionFoundAndClicked = false;
+    for (const query of searchQueries) {
+      input.focus();
+      setNativeInputValue(input, query);
+      await sleep(750);
 
-    // Try to find and click a matching option
-    let option = findCategoryOption(target);
+      let option = findCategoryOption(query);
+      if (!option && query !== target) {
+        option = findCategoryOption(target);
+      }
 
-    // Also try the standard listbox approach as fallback
-    if (!option) {
-      const listbox = typeof findOpenListboxForInput === "function" ? findOpenListboxForInput(input, container) : null;
-      if (listbox) {
-        option = typeof findOptionInListbox === "function" ? findOptionInListbox(listbox, target, false) : null;
-        if (!option) option = typeof findOptionInListbox === "function" ? findOptionInListbox(listbox, target, true) : null;
+      if (!option) {
+        const listbox = typeof findOpenListboxForInput === "function" ? findOpenListboxForInput(input, container) : null;
+        if (listbox) {
+          option = typeof findOptionInListbox === "function" ? findOptionInListbox(listbox, query, false) : null;
+          if (!option) option = typeof findOptionInListbox === "function" ? findOptionInListbox(listbox, target, false) : null;
+        }
+      }
+
+      if (option) {
+        const optionCatalogId = extractCatalogIdFromCandidate(option);
+        if (optionCatalogId) selectedCatalogId = optionCatalogId;
+        clickedStrongCategoryOption = isStrongBranchMatch(option) || getCatalogCandidateIdScore(option) > 0;
+        const clickTargets = findCategoryClickTargets(option);
+        let clickedTarget = null;
+        for (const targetClick of clickTargets.slice(0, 4)) {
+          clickedTarget = targetClick;
+          const targetCatalogId = extractCatalogIdFromCandidate(targetClick);
+          if (targetCatalogId) selectedCatalogId = targetCatalogId;
+          clickElementHard(targetClick);
+          await sleep(420);
+          const snapshot = await waitForCategoryCommit(1200);
+          if (snapshot.success || !snapshot.dropdownOpen) break;
+        }
+        logDomDebug(label, "clicked category option", { option: describeElement(option), targetClick: describeElement(clickedTarget) });
+        optionFoundAndClicked = true;
+        break;
       }
     }
 
-    if (option) {
-      const optionCatalogId = extractCatalogIdFromCandidate(option);
-      if (optionCatalogId) selectedCatalogId = optionCatalogId;
-      clickedStrongCategoryOption = isStrongBranchMatch(option) || getCatalogCandidateIdScore(option) > 0;
-      const clickTargets = findCategoryClickTargets(option);
-      let clickedTarget = null;
-      for (const targetClick of clickTargets.slice(0, 4)) {
-        clickedTarget = targetClick;
-        const targetCatalogId = extractCatalogIdFromCandidate(targetClick);
-        if (targetCatalogId) selectedCatalogId = targetCatalogId;
-        clickElementHard(targetClick);
-        await sleep(420);
-        const snapshot = await waitForCategoryCommit(1200);
-        if (snapshot.success || !snapshot.dropdownOpen) break;
-      }
-      logDomDebug(label, "clicked category option", { option: describeElement(option), targetClick: describeElement(clickedTarget) });
-    } else {
-      // No option found — try pressing Enter then check
+    if (!optionFoundAndClicked) {
       input.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
       await sleep(500);
       logDomDebug(label, "no option found, tried Enter", { attempt });
@@ -1975,11 +2048,17 @@ function isExpectedCommittedInput(el, fieldKey) {
   const id = (el.id || "").toLowerCase();
   const name = (el.getAttribute?.("name") || "").toLowerCase();
   const type = (el.getAttribute?.("type") || "text").toLowerCase();
+  const role = (el.getAttribute?.("role") || "").toLowerCase();
   if (["checkbox", "radio", "file", "button", "submit"].includes(type)) return false;
+  // Un champ de recherche (combobox / search) ne contient jamais une valeur confirmée
+  if (role === "combobox" || type === "search" || id.includes("search") || name.includes("search")) return false;
   const key = String(fieldKey || "").toLowerCase();
-  if (key === "category") return id === "catalog" || name.includes("catalog");
-  return id === key || id.includes(key) || name.includes(key);
+  if (key === "category") return (id === "catalog" || id === "catalog_id" || name === "catalog_id") && !id.includes("search") && !name.includes("search");
+  if (key === "condition") return (id.includes("status") || name.includes("status") || id.includes("condition") || name.includes("condition")) && !id.includes("search") && !name.includes("search");
+  if (key === "colors") return (id.includes("color") || name.includes("color")) && !id.includes("search") && !name.includes("search");
+  return (id === key || id.includes(key) || name.includes(key)) && !id.includes("search") && !name.includes("search");
 }
+
 
 /**
  * Lit la valeur engagée (committed) d'un champ via son sélecteur dédié.
@@ -1990,7 +2069,16 @@ function isExpectedCommittedInput(el, fieldKey) {
 function readCommittedValue(spec) {
   if (!spec.committedSelector) return "";
   const elements = Array.from(document.querySelectorAll(spec.committedSelector));
-  const el = elements.find((candidate) => isExpectedCommittedInput(candidate, spec.id)) || elements[0];
+  const validElements = elements.filter((el) => {
+    if (!el || !el.isConnected) return false;
+    if (isInsideAutomationExcludedSurface(el)) return false;
+    const id = (el.id || "").toLowerCase();
+    const name = (el.getAttribute?.("name") || "").toLowerCase();
+    const role = (el.getAttribute?.("role") || "").toLowerCase();
+    const type = (el.getAttribute?.("type") || "").toLowerCase();
+    return role !== "combobox" && type !== "search" && !id.includes("search") && !name.includes("search");
+  });
+  const el = validElements.find((candidate) => isExpectedCommittedInput(candidate, spec.id)) || validElements[0];
   if (!el) return "";
   const raw = el.value || el.getAttribute("value") || el.textContent || "";
   return normalizeComparableText(raw);
