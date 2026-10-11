@@ -1698,8 +1698,10 @@ function setupPhotoStudioListeners() {
     const closeBtn = document.getElementById('studioCloseBtn');
     const toggleCompareBtn = document.getElementById('studioToggleCompareBtn');
     const cropRange = document.getElementById('studioCropRange');
-    const rotRange = document.getElementById('studioRotRange');
+    const sharpRange = document.getElementById('studioSharpRange');
+    const contrastRange = document.getElementById('studioContrastRange');
     const brightRange = document.getElementById('studioBrightRange');
+    const rotRange = document.getElementById('studioRotRange');
     const noiseToggle = document.getElementById('studioNoiseToggle');
     const saveAllBtn = document.getElementById('studioSaveAllBtn');
     const downloadAllBtn = document.getElementById('studioDownloadAllBtn');
@@ -1718,6 +1720,32 @@ function setupPhotoStudioListeners() {
         }
     });
 
+    if (sharpRange) {
+        sharpRange.addEventListener('input', () => {
+            const valEl = document.getElementById('studioSharpVal');
+            if (valEl) valEl.textContent = `+${sharpRange.value}%`;
+            triggerStudioDebounced();
+        });
+    }
+
+    if (contrastRange) {
+        contrastRange.addEventListener('input', () => {
+            const valEl = document.getElementById('studioContrastVal');
+            const v = Number(contrastRange.value);
+            if (valEl) valEl.textContent = `${v > 0 ? '+' : ''}${v}%`;
+            triggerStudioDebounced();
+        });
+    }
+
+    if (brightRange) {
+        brightRange.addEventListener('input', () => {
+            const valEl = document.getElementById('studioBrightVal');
+            const v = Number(brightRange.value);
+            if (valEl) valEl.textContent = `${v > 0 ? '+' : ''}${v}%`;
+            triggerStudioDebounced();
+        });
+    }
+
     if (cropRange) {
         cropRange.addEventListener('input', () => {
             const valEl = document.getElementById('studioCropVal');
@@ -1731,15 +1759,6 @@ function setupPhotoStudioListeners() {
             const valEl = document.getElementById('studioRotVal');
             const v = Number(rotRange.value);
             if (valEl) valEl.textContent = `${v > 0 ? '+' : ''}${v.toFixed(1)}°`;
-            triggerStudioDebounced();
-        });
-    }
-
-    if (brightRange) {
-        brightRange.addEventListener('input', () => {
-            const valEl = document.getElementById('studioBrightVal');
-            const v = Number(brightRange.value);
-            if (valEl) valEl.textContent = `${v > 0 ? '+' : ''}${v}%`;
             triggerStudioDebounced();
         });
     }
@@ -1804,25 +1823,33 @@ function setupPhotoStudioListeners() {
     const presetBtn = document.getElementById('studioPresetBtn');
     if (presetBtn) {
         presetBtn.addEventListener('click', () => {
-            const cropRange = document.getElementById('studioCropRange');
-            const rotRange = document.getElementById('studioRotRange');
-            const brightRange = document.getElementById('studioBrightRange');
-            const noiseToggle = document.getElementById('studioNoiseToggle');
+            const cropRangeEl = document.getElementById('studioCropRange');
+            const sharpRangeEl = document.getElementById('studioSharpRange');
+            const contrastRangeEl = document.getElementById('studioContrastRange');
+            const brightRangeEl = document.getElementById('studioBrightRange');
+            const rotRangeEl = document.getElementById('studioRotRange');
+            const noiseToggleEl = document.getElementById('studioNoiseToggle');
 
-            if (cropRange) cropRange.value = '5';
-            if (rotRange) rotRange.value = '0.7';
-            if (brightRange) brightRange.value = '2';
-            if (noiseToggle) noiseToggle.checked = true;
+            if (sharpRangeEl) sharpRangeEl.value = '20';
+            if (contrastRangeEl) contrastRangeEl.value = '4';
+            if (brightRangeEl) brightRangeEl.value = '3';
+            if (cropRangeEl) cropRangeEl.value = '2';
+            if (rotRangeEl) rotRangeEl.value = '0';
+            if (noiseToggleEl) noiseToggleEl.checked = false;
 
-            const cVal = document.getElementById('studioCropVal');
-            if (cVal) cVal.textContent = '5%';
-            const rVal = document.getElementById('studioRotVal');
-            if (rVal) rVal.textContent = '+0.7°';
+            const sVal = document.getElementById('studioSharpVal');
+            if (sVal) sVal.textContent = '+20%';
+            const ctVal = document.getElementById('studioContrastVal');
+            if (ctVal) ctVal.textContent = '+4%';
             const bVal = document.getElementById('studioBrightVal');
-            if (bVal) bVal.textContent = '+2%';
+            if (bVal) bVal.textContent = '+3%';
+            const cVal = document.getElementById('studioCropVal');
+            if (cVal) cVal.textContent = '2%';
+            const rVal = document.getElementById('studioRotVal');
+            if (rVal) rVal.textContent = '0°';
 
             triggerStudioDebounced();
-            addLog('success', '🛡️ Preset Anti-Flag appliqué : Recadrage 5%, Rotation 0.7°, Luminosité +2%, Bruit sub-pixel.');
+            addLog('success', '✨ Preset Studio Pro appliqué : Netteté HD +20%, Éclat & Contraste +4%, Lumière +3%, Recadrage doux 2%.');
         });
     }
 }
@@ -2083,49 +2110,54 @@ function renderStudioActivePhoto() {
     }
 
     const cropRange = document.getElementById('studioCropRange');
-    const rotRange = document.getElementById('studioRotRange');
+    const sharpRange = document.getElementById('studioSharpRange');
+    const contrastRange = document.getElementById('studioContrastRange');
     const brightRange = document.getElementById('studioBrightRange');
+    const rotRange = document.getElementById('studioRotRange');
     const noiseToggle = document.getElementById('studioNoiseToggle');
 
-    const crop = cropRange ? Number(cropRange.value) : 4;
-    const rot = rotRange ? Number(rotRange.value) : 0.6;
-    const bright = brightRange ? Number(brightRange.value) : 0;
-    const noise = noiseToggle ? noiseToggle.checked : true;
+    const crop = cropRange ? Number(cropRange.value) : 2;
+    const sharp = sharpRange ? Number(sharpRange.value) : 20;
+    const contrast = contrastRange ? Number(contrastRange.value) : 4;
+    const bright = brightRange ? Number(brightRange.value) : 3;
+    const rot = rotRange ? Number(rotRange.value) : 0;
+    const noise = noiseToggle ? noiseToggle.checked : false;
 
     const processor = window.ImageProcessor ? new window.ImageProcessor() : null;
     if (!processor) return;
 
     let processed = image;
+    // 1. Recadrage doux asymétrique (1.5% - 2%)
     if (crop > 0) {
-        processed = processor.cropImage(processed, crop);
+        processed = processor.smartCrop(processed, crop, studioState.currentIndex);
     }
+    // 2. Rotation si spécifiée manuellement
     if (rot !== 0) {
         processed = processor.rotateImage(processed, rot);
     }
-
-    const tmpCanvas = document.createElement('canvas');
-    tmpCanvas.width = processed.width;
-    tmpCanvas.height = processed.height;
-    const tctx = tmpCanvas.getContext('2d');
-    if (bright !== 0) {
-        tctx.filter = `brightness(${1 + bright / 100})`;
+    // 3. Éclairage Studio & Couleurs vivantes (+lumière, +contraste, +vibrance)
+    processed = processor.applyStudioLighting(processed, {
+        brightness: bright,
+        contrast: contrast,
+        saturation: 5,
+    });
+    // 4. Netteté HD (renforce le piqué des coutures, logos et matières)
+    if (sharp > 0) {
+        processed = processor.applySharpen(processed, sharp / 100);
     }
-    tctx.drawImage(processed, 0, 0);
-    tctx.filter = 'none';
-
-    let finalCanvas = tmpCanvas;
+    // 5. Bruit uniquement si explicitement activé
     if (noise) {
-        finalCanvas = processor.addSubtleNoise(tmpCanvas, {
-            strength: 5 + (studioState.currentIndex % 3),
-            brightness: 0.008,
+        processed = processor.addSubtleNoise(processed, {
+            strength: 4,
+            brightness: 0.006,
         });
     }
 
-    canvas.width = finalCanvas.width;
-    canvas.height = finalCanvas.height;
+    canvas.width = processed.width;
+    canvas.height = processed.height;
     const ctx = canvas.getContext('2d');
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(finalCanvas, 0, 0);
+    ctx.drawImage(processed, 0, 0);
 }
 
 async function handleStudioSaveAll() {
@@ -2135,23 +2167,27 @@ async function handleStudioSaveAll() {
         if (!studioState.photos || !studioState.photos.length) return;
         if (saveBtn) {
             saveBtn.disabled = true;
-            saveBtn.innerHTML = `⏳ Traitement de ${studioState.photos.length} photo(s)...`;
+            saveBtn.innerHTML = `⏳ Embellissement de ${studioState.photos.length} photo(s)...`;
         }
 
         const cropRange = document.getElementById('studioCropRange');
-        const rotRange = document.getElementById('studioRotRange');
+        const sharpRange = document.getElementById('studioSharpRange');
+        const contrastRange = document.getElementById('studioContrastRange');
         const brightRange = document.getElementById('studioBrightRange');
+        const rotRange = document.getElementById('studioRotRange');
         const noiseToggle = document.getElementById('studioNoiseToggle');
 
-        const crop = cropRange ? Number(cropRange.value) : 4;
-        const rot = rotRange ? Number(rotRange.value) : 0.6;
-        const bright = brightRange ? Number(brightRange.value) : 0;
-        const noise = noiseToggle ? noiseToggle.checked : true;
+        const crop = cropRange ? Number(cropRange.value) : 2;
+        const sharp = sharpRange ? Number(sharpRange.value) : 20;
+        const contrast = contrastRange ? Number(contrastRange.value) : 4;
+        const bright = brightRange ? Number(brightRange.value) : 3;
+        const rot = rotRange ? Number(rotRange.value) : 0;
+        const noise = noiseToggle ? noiseToggle.checked : false;
 
         const processor = window.ImageProcessor ? new window.ImageProcessor() : null;
         if (!processor) throw new Error('ImageProcessor non disponible');
 
-        addLog('info', `Application des modifications anti-doublon sur ${studioState.photos.length} photo(s)...`);
+        addLog('info', `Application de l'embellissement Studio Pro sur ${studioState.photos.length} photo(s)...`);
         const modifiedPhotos = [];
 
         for (let i = 0; i < studioState.photos.length; i++) {
@@ -2161,33 +2197,37 @@ async function handleStudioSaveAll() {
             }
             const img = await processor.loadImage(rawSrc);
 
-            let proc = img;
-            // Variance par index pour unicité maximale entre les photos de l'annonce
-            const actualCrop = Math.max(1, crop + (i % 3) * 0.3);
-            const actualRot = rot + ((i % 2 === 0 ? 1 : -1) * (0.1 + (i % 3) * 0.05));
+            // Recadrage doux asymétrique 1.5% - 2%
+            const actualCrop = Math.max(0.8, crop + (i % 3) * 0.2);
+            let proc = processor.smartCrop(img, actualCrop, i);
 
-            if (actualCrop > 0) proc = processor.cropImage(proc, actualCrop);
-            if (actualRot !== 0) proc = processor.rotateImage(proc, actualRot);
-
-            const c = document.createElement('canvas');
-            c.width = proc.width;
-            c.height = proc.height;
-            const ctx = c.getContext('2d');
-            if (bright !== 0) {
-                ctx.filter = `brightness(${1 + bright / 100})`;
+            if (rot !== 0) {
+                const actualRot = rot + ((i % 2 === 0 ? 1 : -1) * (0.1 + (i % 3) * 0.05));
+                proc = processor.rotateImage(proc, actualRot);
             }
-            ctx.drawImage(proc, 0, 0);
-            ctx.filter = 'none';
 
-            let finalCanvas = c;
+            // Éclairage Studio & Couleurs
+            proc = processor.applyStudioLighting(proc, {
+                brightness: bright + (i % 2) * 0.4,
+                contrast: contrast + (i % 3) * 0.3,
+                saturation: 5 + (i % 2) * 0.4,
+            });
+
+            // Netteté HD
+            if (sharp > 0) {
+                proc = processor.applySharpen(proc, sharp / 100);
+            }
+
+            // Bruit optionnel
             if (noise) {
-                finalCanvas = processor.addSubtleNoise(c, {
-                    strength: 5 + (i % 3),
-                    brightness: 0.008,
+                proc = processor.addSubtleNoise(proc, {
+                    strength: 4 + (i % 3),
+                    brightness: 0.006,
                 });
             }
 
-            const base64 = processor.canvasToBase64(finalCanvas, 0.92);
+            // Encodage haute fidélité (96%)
+            const base64 = processor.canvasToBase64(proc, 0.96);
             modifiedPhotos.push(base64);
         }
 
@@ -3080,9 +3120,9 @@ async function handleApplyAndPrefillVariations() {
 
         let finalPhotos = orderedPhotos;
 
-        // Micro-retouche automatique si cochee (+5% recadrage, +2% lumi, rotation, bruit)
+        // Embellissement Studio Pro si coché (+Netteté HD, +Éclat/Contraste, recadrage doux 2%)
         if (autoCropCheck && autoCropCheck.checked && window.ImageProcessor) {
-            addLog('info', 'Application du micro-recadrage et ajustement de luminosité anti-pHash...');
+            addLog('info', 'Application de l\'embellissement Studio Pro (+Netteté HD, +Éclat, recadrage doux 2%)...');
             const processor = new window.ImageProcessor();
             const processedList = [];
 
@@ -3093,27 +3133,22 @@ async function handleApplyAndPrefillVariations() {
                 }
                 const img = await processor.loadImage(rawSrc);
 
-                // Recadrage 5%, micro-rotation 0.7°, luminosite +2%
-                const actualCrop = Math.max(1, 5 + (i % 3) * 0.2);
-                const actualRot = 0.7 * (i % 2 === 0 ? 1 : -1);
+                // 1. Recadrage doux asymétrique 1.8% (ne coupe pas le produit, décale la grille pHash)
+                const actualCrop = Math.max(1, 1.8 + (i % 3) * 0.2);
+                let proc = processor.smartCrop(img, actualCrop, i);
 
-                let proc = processor.cropImage(img, actualCrop);
-                if (actualRot !== 0) proc = processor.rotateImage(proc, actualRot);
-
-                const c = document.createElement('canvas');
-                c.width = proc.width;
-                c.height = proc.height;
-                const ctx = c.getContext('2d');
-                ctx.filter = 'brightness(1.02)';
-                ctx.drawImage(proc, 0, 0);
-                ctx.filter = 'none';
-
-                const finalCanvas = processor.addSubtleNoise(c, {
-                    strength: 5 + (i % 3),
-                    brightness: 0.008,
+                // 2. Éclairage Studio & Couleurs (+3% lumière, +4% contraste, +5% vivacité)
+                proc = processor.applyStudioLighting(proc, {
+                    brightness: 3 + (i % 2) * 0.4,
+                    contrast: 4 + (i % 3) * 0.3,
+                    saturation: 5 + (i % 2) * 0.4,
                 });
 
-                const base64 = processor.canvasToBase64(finalCanvas, 0.92);
+                // 3. Netteté HD (renforce le piqué des coutures, logos et matières)
+                proc = processor.applySharpen(proc, 0.22);
+
+                // 4. Encodage haute fidélité (96% qualité, sans compression visible ni bruit)
+                const base64 = processor.canvasToBase64(proc, 0.96);
                 processedList.push(base64);
             }
             finalPhotos = processedList;

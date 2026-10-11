@@ -1805,11 +1805,9 @@ async function makeUploadFile(dataUrl, index) {
   canvas.height = img.naturalHeight || img.height;
   const ctx = canvas.getContext("2d");
   ctx.drawImage(img, 0, 0);
-  ctx.fillStyle = `rgba(255,255,255,${0.004 + Math.random() * 0.004})`;
-  ctx.fillRect(Math.max(0, canvas.width - 6), Math.max(0, canvas.height - 6), 4, 4);
 
   const jpegBlob = await new Promise((resolve) =>
-    canvas.toBlob((out) => resolve(out || blob), "image/jpeg", 0.9 + Math.random() * 0.05)
+    canvas.toBlob((out) => resolve(out || blob), "image/jpeg", 0.96)
   );
   return new File([jpegBlob], `vinted_republish_${Date.now()}_${index}.jpg`, {
     type: "image/jpeg",
@@ -1841,10 +1839,14 @@ async function startSafeDomDraft(itemId, scannedItem = null, settings = {}) {
     ? ImageProcessor.defaultSettings(settings?.imageSettings || {})
     : {
         enabled: true,
-        cropPercentage: 4,
-        rotationAngle: 0.6,
-        qualityReduction: 6,
-        addNoise: true,
+        cropPercentage: 2,
+        brightnessBoost: 3,
+        contrastBoost: 4,
+        vibranceBoost: 5,
+        sharpness: 22,
+        rotationAngle: 0,
+        quality: 0.96,
+        addNoise: false,
         ...(settings?.imageSettings || {}),
       };
   const useAdvancedProcessing =
@@ -1853,7 +1855,7 @@ async function startSafeDomDraft(itemId, scannedItem = null, settings = {}) {
   if (useAdvancedProcessing) {
     appendOverlayLog(
       "info",
-      `Anti-détection photos ON (crop=${imageSettings.cropPercentage}%, rot=${imageSettings.rotationAngle}°, q-${imageSettings.qualityReduction}%, noise=${imageSettings.addNoise !== false})`
+      `Embellissement Studio Pro ON (Netteté HD, Éclat & Contraste, recadrage doux ${imageSettings.cropPercentage || 2}%)`
     );
   } else {
     appendOverlayLog("warning", "Anti-détection photos OFF — les photos resteront identiques à l'originale");
