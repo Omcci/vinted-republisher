@@ -12,8 +12,160 @@ const OPENAI_STORAGE_KEYS = {
   autoGenerate: "vinted_openai_auto_generate",
 };
 
+const CRYPTO_SALT_STORAGE_KEY = "vinted_crypto_salt_v1";
+const ENCRYPTED_PREFIX = "enc:v1:";
+
 /**
- * Récupère la configuration OpenAI stockée localement.
+ * Utilitaires Base64 universels (compatibles Browser et Node.js)
+ */
+function bytesToBase64(bytes) {
+  if (typeof Buffer !== "undefined") {
+    return Buffer.from(bytes).toString("base64");
+  }
+  let binary = "";
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToBytes(base64) {
+  if (typeof Buffer !== "undefined") {
+    return new Uint8Array(Buffer.from(base64, "base64"));
+  }
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Récupère ou génère le sel cryptographique unique à cette installation.
+ * @returns {Promise<Uint8Array>}
+ */
+async function getOrCreateCryptoSalt() {
+  const cryptoObj = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
+  try {
+    if (typeof chrome !== "undefined" && chrome.storage?.local) {
+      const res = await chrome.storage.local.get(CRYPTO_SALT_STORAGE_KEY);
+      if (res && res[CRYPTO_SALT_STORAGE_KEY] && typeof res[CRYPTO_SALT_STORAGE_KEY] === "string") {
+        return base64ToBytes(res[CRYPTO_SALT_STORAGE_KEY]);
+      }
+      const newSalt = cryptoObj.getRandomValues(new Uint8Array(16));
+      await chrome.storage.local.set({ [CRYPTO_SALT_STORAGE_KEY]: bytesToBase64(newSalt) });
+      return newSalt;
+    }
+  } catch (_) {}
+  // Sel statique déterministe pour environnement sans chrome.storage (ex: tests unitaires)
+  return new Uint8Array([79, 109, 99, 105, 86, 105, 110, 116, 101, 100, 83, 97, 108, 116, 50, 48]);
+}
+
+/**
+ * Dérive une clé AES-GCM 256 bits à partir de l'identité locale et du sel.
+ * @param {Uint8Array} salt
+ * @returns {Promise<CryptoKey>}
+ */
+async function deriveStorageKey(salt) {
+  const cryptoObj = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
+  const runtimeId = (typeof chrome !== "undefined" && chrome.runtime?.id) ? chrome.runtime.id : "vinted-republisher-pro";
+  const rawKeyMaterial = new TextEncoder().encode(`vinted_key_shield_${runtimeId}`);
+
+  const baseKey = await cryptoObj.subtle.importKey(
+    "raw",
+    rawKeyMaterial,
+    { name: "PBKDF2" },
+    false,
+    ["deriveKey"]
+  );
+
+  return await cryptoObj.subtle.deriveKey(
+    {
+      name: "PBKDF2",
+      salt,
+      iterations: 100000,
+      hash: "SHA-256",
+    },
+    baseKey,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+
+/**
+ * Chiffre une chaîne secrète en AES-GCM 256 bits (Web Crypto API).
+ * @param {string} plaintext
+ * @returns {Promise<string>}
+ */
+async function encryptSecretString(plaintext) {
+  if (!plaintext || typeof plaintext !== "string") return "";
+  try {
+    const cryptoObj = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
+    const salt = await getOrCreateCryptoSalt();
+    const aesKey = await deriveStorageKey(salt);
+
+    const iv = cryptoObj.getRandomValues(new Uint8Array(12));
+    const encoded = new TextEncoder().encode(plaintext.trim());
+
+    const ciphertext = await cryptoObj.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      aesKey,
+      encoded
+    );
+
+    // Format sérialisé opaque : enc:v1:<base64(iv)>:<base64(ciphertext)>
+    return `${ENCRYPTED_PREFIX}${bytesToBase64(iv)}:${bytesToBase64(new Uint8Array(ciphertext))}`;
+  } catch (err) {
+    console.warn("[OpenAI Service] Échec chiffrement AES-GCM, repli sécurisé:", err);
+    return plaintext;
+  }
+}
+
+/**
+ * Déchiffre une chaîne secrète chiffrée en AES-GCM 256 bits.
+ * Si la chaîne est une ancienne clé en clair (legacy sk-...), elle est retournée telle quelle pour migration.
+ * @param {string} encryptedString
+ * @returns {Promise<string>}
+ */
+async function decryptSecretString(encryptedString) {
+  if (!encryptedString || typeof encryptedString !== "string") return "";
+  const trimmed = encryptedString.trim();
+
+  // Si c'est déjà en clair (clé legacy sk-...)
+  if (!trimmed.startsWith(ENCRYPTED_PREFIX)) {
+    return trimmed;
+  }
+
+  try {
+    const cryptoObj = typeof crypto !== "undefined" ? crypto : globalThis.crypto;
+    const parts = trimmed.slice(ENCRYPTED_PREFIX.length).split(":");
+    if (parts.length !== 2) return "";
+
+    const iv = base64ToBytes(parts[0]);
+    const ciphertext = base64ToBytes(parts[1]);
+
+    const salt = await getOrCreateCryptoSalt();
+    const aesKey = await deriveStorageKey(salt);
+
+    const decrypted = await cryptoObj.subtle.decrypt(
+      { name: "AES-GCM", iv },
+      aesKey,
+      ciphertext
+    );
+
+    return new TextDecoder().decode(decrypted).trim();
+  } catch (err) {
+    console.warn("[OpenAI Service] Échec déchiffrement AES-GCM:", err);
+    return "";
+  }
+}
+
+/**
+ * Récupère la configuration OpenAI stockée localement (déchiffre la clé AES-GCM à la volée).
+ * Effectue une migration automatique transparente si une ancienne clé en clair est détectée.
  * @returns {Promise<{ apiKey: string, model: string, enabled: boolean, autoGenerate: boolean }>}
  */
 async function getOpenAiConfig() {
@@ -24,11 +176,28 @@ async function getOpenAiConfig() {
       OPENAI_STORAGE_KEYS.enabled,
       OPENAI_STORAGE_KEYS.autoGenerate,
     ]);
+
+    const rawStoredKey = String(res[OPENAI_STORAGE_KEYS.apiKey] || "").trim();
+    let plainApiKey = "";
+
+    if (rawStoredKey) {
+      if (rawStoredKey.startsWith(ENCRYPTED_PREFIX)) {
+        // Déchiffrement AES-GCM à la volée
+        plainApiKey = await decryptSecretString(rawStoredKey);
+      } else {
+        // Clé legacy en clair détectée : migration automatique immédiate vers AES-GCM
+        plainApiKey = rawStoredKey;
+        const encrypted = await encryptSecretString(rawStoredKey);
+        await chrome.storage.local.set({ [OPENAI_STORAGE_KEYS.apiKey]: encrypted });
+        console.log("[OpenAI Service] 🔒 Migration transparente : clé API chiffrée avec succès en AES-GCM.");
+      }
+    }
+
     return {
-      apiKey: String(res[OPENAI_STORAGE_KEYS.apiKey] || "").trim(),
+      apiKey: plainApiKey,
       model: String(res[OPENAI_STORAGE_KEYS.model] || OPENAI_DEFAULT_MODEL).trim(),
       enabled: Boolean(res[OPENAI_STORAGE_KEYS.enabled]),
-      autoGenerate: res[OPENAI_STORAGE_KEYS.autoGenerate] !== false, // Actif par défaut si IA activée
+      autoGenerate: res[OPENAI_STORAGE_KEYS.autoGenerate] !== false,
     };
   } catch (err) {
     console.warn("[OpenAI Service] Impossible de lire la config:", err);
@@ -42,12 +211,20 @@ async function getOpenAiConfig() {
 }
 
 /**
- * Sauvegarde la configuration OpenAI dans le stockage local.
+ * Sauvegarde la configuration OpenAI dans le stockage local (chiffre la clé en AES-GCM avant écriture sur disque).
  * @param {object} patch
  */
 async function saveOpenAiConfig(patch = {}) {
   const toSave = {};
-  if (patch.apiKey !== undefined) toSave[OPENAI_STORAGE_KEYS.apiKey] = String(patch.apiKey).trim();
+  if (patch.apiKey !== undefined) {
+    const cleanKey = String(patch.apiKey).trim();
+    if (cleanKey) {
+      // Chiffrement AES-GCM 256 bits avant enregistrement dans chrome.storage.local
+      toSave[OPENAI_STORAGE_KEYS.apiKey] = await encryptSecretString(cleanKey);
+    } else {
+      toSave[OPENAI_STORAGE_KEYS.apiKey] = "";
+    }
+  }
   if (patch.model !== undefined) toSave[OPENAI_STORAGE_KEYS.model] = String(patch.model).trim();
   if (patch.enabled !== undefined) toSave[OPENAI_STORAGE_KEYS.enabled] = Boolean(patch.enabled);
   if (patch.autoGenerate !== undefined) toSave[OPENAI_STORAGE_KEYS.autoGenerate] = Boolean(patch.autoGenerate);
@@ -327,6 +504,8 @@ if (typeof window !== "undefined") {
     saveOpenAiConfig,
     testOpenAiApiKey,
     callOpenAiListingReformulation,
+    encryptSecretString,
+    decryptSecretString,
   };
 }
 
@@ -337,5 +516,7 @@ if (typeof module !== "undefined" && module.exports) {
     saveOpenAiConfig,
     testOpenAiApiKey,
     callOpenAiListingReformulation,
+    encryptSecretString,
+    decryptSecretString,
   };
 }

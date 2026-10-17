@@ -7,6 +7,10 @@ const {
   OPENAI_DEFAULT_MODEL,
   testOpenAiApiKey,
   callOpenAiListingReformulation,
+  encryptSecretString,
+  decryptSecretString,
+  getOpenAiConfig,
+  saveOpenAiConfig,
 } = require("../openai-service.js");
 
 async function runTests() {
@@ -129,6 +133,58 @@ async function runTests() {
   } finally {
     global.fetch = originalFetch;
   }
+
+  console.log("\n=== Test 5: Chiffrement et Déchiffrement AES-GCM 256 bits ===");
+  const testSecret = "sk-proj-superSecretTestKey1234567890abcdef";
+  const encrypted = await encryptSecretString(testSecret);
+  assert(encrypted.startsWith("enc:v1:"), "Le payload chiffré doit débuter par 'enc:v1:'");
+  assert(!encrypted.includes("sk-"), "Le payload chiffré ne doit JAMAIS contenir la clé en clair ou 'sk-'");
+  console.log("✓ Format chiffré sécurisé opaque :", encrypted.slice(0, 36) + "...");
+
+  const decrypted = await decryptSecretString(encrypted);
+  assert.strictEqual(decrypted, testSecret, "Le déchiffrement doit restituer la clé d'origine exacte");
+  console.log("✓ Déchiffrement réussi et intègre :", decrypted);
+
+  console.log("\n=== Test 6: Migration transparente et persistance chiffrée ===");
+  // Simule l'environnement chrome.storage.local
+  const mockStorage = {
+    vinted_openai_api_key: "sk-proj-legacyUnencryptedKey999",
+    vinted_openai_model: "gpt-4o-mini",
+    vinted_openai_enabled: true,
+  };
+  global.chrome = {
+    runtime: { id: "test-extension-id" },
+    storage: {
+      local: {
+        get: async (keys) => {
+          const res = {};
+          for (const k of (Array.isArray(keys) ? keys : [keys])) {
+            if (k in mockStorage) res[k] = mockStorage[k];
+          }
+          return res;
+        },
+        set: async (items) => {
+          Object.assign(mockStorage, items);
+        },
+      },
+    },
+  };
+
+  // Lecture de la config : doit détecter la clé legacy, la migrer et la renvoyer en mémoire
+  const cfg = await getOpenAiConfig();
+  assert.strictEqual(cfg.apiKey, "sk-proj-legacyUnencryptedKey999", "La clé déchiffrée en mémoire doit être fidèle");
+  assert(mockStorage.vinted_openai_api_key.startsWith("enc:v1:"), "Le stockage local DOIT avoir été migré vers le format chiffré enc:v1:");
+  assert(!mockStorage.vinted_openai_api_key.includes("sk-"), "Le stockage local ne doit PLUS JAMAIS contenir sk- en clair");
+  console.log("✓ Migration automatique de la clé legacy vers AES-GCM réussie !");
+
+  // Nouvelle sauvegarde via saveOpenAiConfig
+  await saveOpenAiConfig({ apiKey: "sk-proj-newKey888" });
+  assert(mockStorage.vinted_openai_api_key.startsWith("enc:v1:"), "saveOpenAiConfig doit chiffrer la nouvelle clé");
+  assert(!mockStorage.vinted_openai_api_key.includes("sk-"), "La nouvelle clé ne doit pas être stockée en clair");
+
+  const cfgAfterSave = await getOpenAiConfig();
+  assert.strictEqual(cfgAfterSave.apiKey, "sk-proj-newKey888", "Relecture immédiate de la nouvelle clé chiffrée réussie");
+  console.log("✓ Enregistrement et lecture chiffrée AES-GCM validés sans faille.");
 
   console.log("\n🎉 TOUS LES TESTS DU SERVICE OPENAI SONT VALIDES !");
 }
