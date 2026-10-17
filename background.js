@@ -504,7 +504,49 @@ function requestTab(tabId, message) {
   });
 }
 
+function isAllowedVintedImageUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  try {
+    let normalized = url.trim();
+    if (normalized.startsWith("//")) normalized = `https:${normalized}`;
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+
+    const host = parsed.hostname.toLowerCase();
+    // Rejeter formellement les adresses privées / locales / loopback
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
+      /^169\.254\./.test(host)
+    ) {
+      return false;
+    }
+
+    // Seuls les domaines et CDNs officiels de Vinted sont autorisés
+    const allowedPatterns = [
+      /\.vinted\.fr$/,
+      /\.vinted\.com$/,
+      /\.vinted\.net$/,
+      /\.vintedstatic\.com$/,
+      /^vinted\.fr$/,
+      /^vinted\.com$/,
+      /^images\d*\.vinted\.net$/,
+    ];
+    return allowedPatterns.some((pattern) => pattern.test(host));
+  } catch (_) {
+    return false;
+  }
+}
+
 async function downloadImageAsDataUrl(url) {
+  if (!isAllowedVintedImageUrl(url)) {
+    throw new Error("URL d'image non autorisée : domaine Vinted CDN requis");
+  }
   const candidates = buildImageUrlCandidates(url);
   let lastError = null;
 

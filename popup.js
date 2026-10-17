@@ -396,14 +396,15 @@ async function persistBackupInPopupStorage(backup) {
     }
 
     const item = { ...backup.item };
-    if (!item.itemId) {
-        item.itemId = String(backup.backupId || '').split('_')[0] || `import_${Date.now()}`;
-    }
+    const rawId = String(item.itemId || backup.backupId || '').split('_')[0] || `import_${Date.now()}`;
+    const cleanId = rawId.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40) || `import_${Date.now()}`;
+    item.itemId = cleanId;
+
     if (item.category) {
         item.category = String(item.category).replace(/^[A-Z]{2,5}\s+/, '').trim() || item.category;
     }
 
-    const storageKey = `${REPUBLISH_BACKUP_PREFIX}${item.itemId}`;
+    const storageKey = `${REPUBLISH_BACKUP_PREFIX}${cleanId}`;
     const nextBackup = {
         ...backup,
         version: backup.version || 2,
@@ -985,16 +986,37 @@ function displayFoundItems() {
 function createItemElement(item, index) {
     const div = document.createElement('div');
     div.className = 'item';
-    div.innerHTML = `
-        <input type="checkbox" class="item-checkbox" data-index="${index}">
-        <img src="${item.image}" alt="Article" class="item-image" onerror="this.style.display='none'">
-        <div class="item-info">
-            <div class="item-title">${item.title}</div>
-            <div class="item-price">${item.price}</div>
-        </div>
-    `;
 
-    const checkbox = div.querySelector('.item-checkbox');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'item-checkbox';
+    checkbox.dataset.index = String(index);
+
+    const img = document.createElement('img');
+    img.className = 'item-image';
+    img.alt = 'Article';
+    const safeSrc = sanitizeImageUrl(item.image);
+    img.src = safeSrc || 'icons/icon48.png';
+    img.onerror = () => { img.style.display = 'none'; };
+
+    const info = document.createElement('div');
+    info.className = 'item-info';
+
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'item-title';
+    titleDiv.textContent = item.title || 'Sans titre';
+
+    const priceDiv = document.createElement('div');
+    priceDiv.className = 'item-price';
+    priceDiv.textContent = item.price ? String(item.price) : '';
+
+    info.appendChild(titleDiv);
+    info.appendChild(priceDiv);
+
+    div.appendChild(checkbox);
+    div.appendChild(img);
+    div.appendChild(info);
+
     checkbox.addEventListener('change', (e) => {
         if (e.target.checked) {
             currentState.selectedItems.push(index);
@@ -1134,10 +1156,18 @@ function addLog(type, message) {
     if (logs) logs.hidden = false;
     const logDiv = document.createElement('div');
     logDiv.className = `log-entry ${type}`;
-    logDiv.innerHTML = `
-        <span class="log-timestamp">${new Date().toLocaleTimeString()}</span>
-        <span class="log-message">${message}</span>
-    `;
+
+    const timestampSpan = document.createElement('span');
+    timestampSpan.className = 'log-timestamp';
+    timestampSpan.textContent = new Date().toLocaleTimeString();
+
+    const messageSpan = document.createElement('span');
+    messageSpan.className = 'log-message';
+    messageSpan.textContent = String(message || '');
+
+    logDiv.appendChild(timestampSpan);
+    logDiv.appendChild(document.createTextNode(' '));
+    logDiv.appendChild(messageSpan);
 
     const target = logsContainer || logs;
     if (!target) return;
@@ -1319,16 +1349,17 @@ function renderVaultCards(itemsToRender) {
     }
 
     container.innerHTML = itemsToRender.map((item) => {
+        const safeId = escapeHtml(item.itemId);
         const title = escapeHtml(item.title || `Article #${item.itemId}`);
         const price = item.price ? `${escapeHtml(item.price)} €` : 'Prix n/a';
         const brand = item.brand ? `<span class="vault-tag">${escapeHtml(item.brand)}</span>` : '';
         const size = item.size ? `<span class="vault-tag">${escapeHtml(item.size)}</span>` : '';
         const condition = item.condition ? `<span class="vault-tag">${escapeHtml(item.condition)}</span>` : '';
         const dateStr = item.createdAt ? new Date(item.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-        const thumb = item.thumbnail || 'icons/icon48.png';
+        const thumb = sanitizeImageUrl(item.thumbnail) || 'icons/icon48.png';
 
         return `
-            <div class="vault-card" data-item-id="${item.itemId}">
+            <div class="vault-card" data-item-id="${safeId}">
                 <div class="vault-card-body">
                     <img src="${thumb}" class="vault-thumb" alt="" onerror="this.src='icons/icon48.png'">
                     <div class="vault-details">
@@ -1340,27 +1371,27 @@ function renderVaultCards(itemsToRender) {
                             ${condition}
                         </div>
                         <div class="vault-sub">
-                            <span>📸 ${item.photoCount || 0} photo(s)</span> · <span>🕒 ${dateStr}</span>
+                            <span>📸 ${Number(item.photoCount) || 0} photo(s)</span> · <span>🕒 ${escapeHtml(dateStr)}</span>
                         </div>
                     </div>
                 </div>
                 <div class="vault-card-actions">
-                    <button class="btn btn-sm btn-primary vault-antidup-btn" data-id="${item.itemId}" type="button" title="Pré-remplir sur Vinted avec protection anti-doublon">
+                    <button class="btn btn-sm btn-primary vault-antidup-btn" data-id="${safeId}" type="button" title="Pré-remplir sur Vinted avec protection anti-doublon">
                         🛡️ Varier & Pré-remplir
                     </button>
-                    <button class="btn btn-sm btn-ghost vault-photos-btn" data-id="${item.itemId}" type="button" title="Studio Retouche Photo & Couverture">
+                    <button class="btn btn-sm btn-ghost vault-photos-btn" data-id="${safeId}" type="button" title="Studio Retouche Photo & Couverture">
                         🎨 Photos
                     </button>
-                    <button class="btn btn-sm btn-ghost vault-prefill-btn" data-id="${item.itemId}" type="button" title="Pré-remplir directement tel quel">
+                    <button class="btn btn-sm btn-ghost vault-prefill-btn" data-id="${safeId}" type="button" title="Pré-remplir directement tel quel">
                         ⚡ Direct
                     </button>
-                    <button class="btn btn-sm btn-ghost vault-copy-btn" data-id="${item.itemId}" type="button" title="Copier le texte et les caractéristiques">
+                    <button class="btn btn-sm btn-ghost vault-copy-btn" data-id="${safeId}" type="button" title="Copier le texte et les caractéristiques">
                         📋 Copier
                     </button>
-                    <button class="btn btn-sm btn-ghost vault-download-btn" data-id="${item.itemId}" type="button" title="Télécharger le fichier JSON de backup">
+                    <button class="btn btn-sm btn-ghost vault-download-btn" data-id="${safeId}" type="button" title="Télécharger le fichier JSON de backup">
                         💾 JSON
                     </button>
-                    <button class="btn btn-sm btn-danger vault-delete-btn" data-id="${item.itemId}" type="button" title="Supprimer de la sauvegarde">
+                    <button class="btn btn-sm btn-danger vault-delete-btn" data-id="${safeId}" type="button" title="Supprimer de la sauvegarde">
                         🗑️
                     </button>
                 </div>
@@ -1677,6 +1708,22 @@ function escapeHtml(str) {
         .replace(/>/g, '&gt;')
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
+}
+
+function sanitizeImageUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    const trimmed = url.trim();
+    if (trimmed.startsWith('icons/') || trimmed.startsWith('/icons/')) return trimmed;
+    if (/^data:image\/(jpe?g|png|webp|gif);base64,[A-Za-z0-9+/=]+$/i.test(trimmed)) {
+        return trimmed;
+    }
+    try {
+        const parsed = new URL(trimmed);
+        if (parsed.protocol === 'https:' || parsed.protocol === 'http:') {
+            return parsed.href;
+        }
+    } catch (_) {}
+    return '';
 }
 
 /* ==========================================================================

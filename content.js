@@ -2667,6 +2667,43 @@ function shortUrl(url) {
   return `${raw.slice(0, 40)}…${raw.slice(-18)}`;
 }
 
+function isAllowedVintedImageUrl(url) {
+  if (!url || typeof url !== "string") return false;
+  try {
+    let normalized = url.trim();
+    if (normalized.startsWith("//")) normalized = `https:${normalized}`;
+    const parsed = new URL(normalized);
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".local") ||
+      /^10\./.test(host) ||
+      /^192\.168\./.test(host) ||
+      /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host) ||
+      /^169\.254\./.test(host)
+    ) {
+      return false;
+    }
+
+    const allowedPatterns = [
+      /\.vinted\.fr$/,
+      /\.vinted\.com$/,
+      /\.vinted\.net$/,
+      /\.vintedstatic\.com$/,
+      /^vinted\.fr$/,
+      /^vinted\.com$/,
+      /^images\d*\.vinted\.net$/,
+    ];
+    return allowedPatterns.some((pattern) => pattern.test(host));
+  } catch (_) {
+    return false;
+  }
+}
+
 function extractItemIdFromUrl(url = window.location.href) {
   const match = String(url || "").match(/\/items\/(\d+)/);
   return match ? match[1] : null;
@@ -5634,7 +5671,11 @@ function initInPageVaultButtons() {
           </div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <select id="vinted-vault-banner-select" style="font-size:12px;padding:7px 10px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#1e293b;max-width:280px;font-weight:500;">
-              ${index.map(it => `<option value="${it.itemId}">${(it.title || 'Article #' + it.itemId).slice(0, 32)} (${it.price ? it.price + '€' : 'sans prix'}${it.brand ? ' · ' + it.brand : ''})</option>`).join("")}
+              ${index.map(it => {
+                const safeId = escapeHtml(it.itemId);
+                const rawLabel = `${(it.title || 'Article #' + it.itemId).slice(0, 32)} (${it.price ? it.price + '€' : 'sans prix'}${it.brand ? ' · ' + it.brand : ''})`;
+                return `<option value="${safeId}">${escapeHtml(rawLabel)}</option>`;
+              }).join("")}
             </select>
             <button id="vinted-vault-banner-fill-btn" style="background:#0aa3ad;color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:6px;transition:background 0.2s;">
               ⚡ Pré-remplir l'annonce
@@ -5737,6 +5778,20 @@ window.addEventListener("message", (event) => {
   if (event.data && event.data.action === "VINTED_DOWNLOAD_IMAGE_REQUEST") {
     const requestId = event.data.requestId;
     const url = event.data.url;
+    const targetOrigin = window.location.origin || "*";
+    if (!url || typeof url !== "string" || !isAllowedVintedImageUrl(url)) {
+      window.postMessage(
+        {
+          action: "VINTED_DOWNLOAD_IMAGE_RESPONSE",
+          requestId,
+          success: false,
+          dataUrl: null,
+          error: "URL image non autorisée",
+        },
+        targetOrigin
+      );
+      return;
+    }
     chrome.runtime
       .sendMessage({
         action: "DOWNLOAD_IMAGE_DATAURL",
@@ -5751,7 +5806,7 @@ window.addEventListener("message", (event) => {
             dataUrl: response?.dataUrl || null,
             error: response?.error || null,
           },
-          "*"
+          targetOrigin
         );
       })
       .catch((error) => {
@@ -5763,7 +5818,7 @@ window.addEventListener("message", (event) => {
             dataUrl: null,
             error: error?.message || "download bridge failed",
           },
-          "*"
+          targetOrigin
         );
       });
     return;
