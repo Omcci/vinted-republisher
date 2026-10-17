@@ -1,188 +1,140 @@
-# Vinted Auto Republisher
+# Vinted Republisher PRO
 
-Un plugin Chrome avancé pour automatiser la republication de vos annonces Vinted avec modification intelligente des images pour éviter la détection de doublons.
-
-## 🚀 Fonctionnalités
-
-### 📸 Modification intelligente des images
-- **Recadrage automatique** : Supprime 3-10% des bords de chaque image
-- **Watermarks invisibles** : Ajoute des modifications imperceptibles pour changer le hash
-- **Rotation légère** : Applique une rotation de 0.5-2° pour éviter la détection
-- **Compression variable** : Ajuste la qualité JPEG pour créer des fichiers uniques
-- **Bruit numérique** : Modifie quelques pixels de manière imperceptible
-
-### 🔄 Automatisation complète
-- **Scan automatique** : Détecte toutes vos annonces Vinted
-- **Sélection multiple** : Choisissez quelles annonces republier
-- **Traitement par lot** : Republie plusieurs annonces avec délais configurables
-- **Gestion d'erreurs** : Continue même en cas d'échec sur une annonce
-- **Logs détaillés** : Suivez le progrès en temps réel
-
-### ⚙️ Paramètres configurables
-- Pourcentage de recadrage (3-10%)
-- Texte de watermark personnalisé
-- Angle de rotation (0-2°)
-- Réduction de qualité (0-15%)
-- Délai entre republications (30s-5min)
-- Limite d'articles par session
-
-### 🛡️ Sécurité et discrétion
-- **Évite la détection** : Techniques avancées de modification d'images
-- **Délais réalistes** : Simule un comportement humain
-- **Logs privés** : Toutes les données restent locales
-- **Interface discrète** : Se fond dans l'interface Vinted
-
-## 📦 Installation
-
-### 1. Téléchargement
-1. Téléchargez ou clonez ce repository
-2. Décompressez le fichier dans un dossier local
-
-### 2. Génération des icônes
-Les icônes ne sont pas incluses dans le repository. Vous devez les générer :
-
-1. Ouvrez le fichier `generate-icons.html` dans votre navigateur
-2. Cliquez sur "Télécharger toutes les icônes"
-3. Placez les fichiers téléchargés dans le dossier `icons/` :
-   - `icon16.png`
-   - `icon32.png` 
-   - `icon48.png`
-   - `icon128.png`
-
-### 3. Installation dans Chrome
-1. Ouvrez Chrome et allez à `chrome://extensions/`
-2. Activez le "Mode développeur" (coin supérieur droit)
-3. Cliquez sur "Charger l'extension non empaquetée"
-4. Sélectionnez le dossier contenant les fichiers du plugin
-5. L'extension apparaît dans votre barre d'outils
-
-## 🎯 Utilisation
-
-### 1. Accès au plugin
-1. Connectez-vous à votre compte Vinted
-2. Allez sur votre profil ou la page "Mes articles"
-3. Cliquez sur l'icône du plugin dans la barre d'outils
-
-### 2. Configuration initiale
-1. **Paramètres d'images** : Ajustez selon vos préférences
-   - Recadrage recommandé : 5%
-   - Watermark : Activé (laissez le texte vide pour un watermark invisible)
-   - Rotation : 0.5°
-   - Qualité : 5% de réduction
-
-2. **Paramètres de republication** :
-   - Délai recommandé : 1-2 minutes entre chaque annonce
-   - Maximum : 10-20 articles par session
-
-### 3. Republication
-1. Cliquez sur "Scanner les annonces" pour détecter vos articles
-2. Sélectionnez les annonces à republier (cochage des cases)
-3. Cliquez sur "Republier les sélectionnées"
-4. Suivez le progrès dans les logs en temps réel
-
-### 4. Bonnes pratiques
-- **Ne pas abuser** : Limitez-vous à 1-2 sessions par jour
-- **Varier les délais** : Changez régulièrement les paramètres
-- **Surveiller les résultats** : Vérifiez que vos annonces sont bien publiées
-- **Sauvegarder** : Notez vos paramètres préférés
-
-## ⚠️ Avertissements et limitations
-
-### Responsabilité
-- Ce plugin est fourni "tel quel" sans garantie
-- L'utilisation se fait à vos propres risques
-- Respectez les conditions d'utilisation de Vinted
-- L'auteur n'est pas responsable des suspensions de compte
-
-### Limitations techniques
-- Fonctionne uniquement sur les versions françaises de Vinted (.fr)
-- Nécessite Chrome ou un navigateur compatible
-- Peut nécessiter des ajustements selon les mises à jour de Vinted
-- Les sélecteurs CSS peuvent changer avec les mises à jour du site
-
-### Détection possible
-Bien que le plugin utilise des techniques avancées pour éviter la détection :
-- Aucune méthode n'est 100% infaillible
-- Vinted peut améliorer ses systèmes de détection
-- Utilisez avec modération pour réduire les risques
-
-## 🔧 Développement
-
-### Structure du projet
-```
-vinted-republisher/
-├── manifest.json           # Configuration du plugin Chrome
-├── popup.html              # Interface utilisateur
-├── popup.css               # Styles de l'interface
-├── popup.js                # Logique de l'interface
-├── content.js              # Script d'injection dans Vinted
-├── content.css             # Styles pour l'injection
-├── background.js           # Service worker
-├── image-processor.js      # Traitement des images
-├── icons/                  # Icônes du plugin
-└── README.md              # Documentation
-```
-
-### Technologies utilisées
-- **Manifest V3** : Standard actuel pour les extensions Chrome
-- **Canvas API** : Traitement des images côté client
-- **Chrome Extension APIs** : Interaction avec le navigateur
-- **Vanilla JavaScript** : Pas de dépendances externes
-
-### Contribution
-Les contributions sont les bienvenues ! Pour contribuer :
-
-1. Forkez le repository
-2. Créez une branche pour votre fonctionnalité
-3. Testez thoroughly sur différentes pages Vinted
-4. Soumettez une pull request avec une description détaillée
-
-## 📝 Changelog
-
-### Version 1.0.0 (Initial)
-- ✅ Scan automatique des annonces Vinted
-- ✅ Modification intelligente des images (recadrage, watermark, rotation)
-- ✅ Interface utilisateur intuitive
-- ✅ Logs détaillés et suivi de progression
-- ✅ Paramètres configurables
-- ✅ Gestion d'erreurs robuste
-- ✅ Support des délais réalistes
-
-## 🛠️ Dépannage
-
-### Le plugin ne détecte pas les annonces
-1. Vérifiez que vous êtes sur une page Vinted avec vos articles
-2. Actualisez la page et réessayez
-3. Vérifiez la console Chrome (F12) pour les erreurs
-
-### Les images ne se modifient pas correctement
-1. Vérifiez que les images sont accessibles (pas de CORS)
-2. Essayez de réduire le pourcentage de recadrage
-3. Désactivez temporairement le watermark
-
-### La republication échoue
-1. Vérifiez votre connexion internet
-2. Assurez-vous d'être connecté à Vinted
-3. Réduisez le nombre d'articles par session
-4. Augmentez le délai entre les republications
-
-### Problèmes de permissions
-1. Vérifiez que l'extension a accès aux sites Vinted
-2. Rechargez l'extension dans chrome://extensions/
-3. Redémarrez Chrome si nécessaire
-
-## 📞 Support
-
-Pour obtenir de l'aide :
-
-1. **Issues GitHub** : Signalez les bugs et demandez des fonctionnalités
-2. **Wiki** : Consultez la documentation détaillée
-3. **Discussions** : Partagez vos expériences avec la communauté
-
-## ⚖️ Licence
-
-Ce projet est sous licence MIT. Voir le fichier LICENSE pour plus de détails.
+Extension Chrome (Manifest V3) pour automatiser la republication, l'archivage local et le contournement des détections de doublons sur Vinted, sans dégradation de la qualité des annonces.
 
 ---
 
-**Avertissement** : Ce plugin n'est pas affilié à Vinted. Utilisez-le de manière responsable et respectez les conditions d'utilisation de Vinted.
+## Vue d'ensemble
+
+Vinted Republisher PRO modernise la gestion d'un dressing Vinted grâce à trois piliers :
+
+1. **Coffre-fort local (Vault)** : Sauvegarde intégrale des annonces (photos haute résolution, descriptions, prix, attributs catalogue) avec import et export JSON.
+2. **Bouclier Anti-Doublon** : Sublimation d'images Studio Pro et reformulation textuelle (IA ou locale) pour modifier l'empreinte algorithmique sans dégrader la qualité visuelle.
+3. **Moteur d'automatisation DOM** : Remplissage complet, dynamique et résilient des formulaires Vinted, avec exécution possible en tâche de fond (mode discret).
+
+---
+
+## Fonctionnalités principales
+
+### Coffre-fort d'annonces (Vault)
+- **Archivage complet** : Capture en un clic depuis n'importe quelle annonce active ou scan global du dressing.
+- **Stockage local persistant** : Conservation des photos originales en pleine résolution et de l'ensemble des attributs (catégorie, marque, taille, état, couleur, matière, format de colis).
+- **Import / Export JSON** : Sauvegarde externe, transfert entre postes ou archivage de sécurité au format `vinted-backup-*.json`.
+- **Recherche instantanée** : Filtre rapide par titre, marque ou taille.
+
+### Bouclier Anti-Doublon & Studio Photo
+Les algorithmes de détection de doublons (pHash/DCT) comparent les matrices de fréquences spatiales. Vinted Republisher PRO modifie ces empreintes en valorisant l'annonce plutôt qu'en la détériorant :
+
+| Traitement | Mécanisme technique | Effet visuel |
+| :--- | :--- | :--- |
+| **Netteté HD** | Masque de convolution spatial 3x3 | Renforce le piqué des matières, coutures et logos |
+| **Éclairage Studio** | +3% luminosité, +4% contraste, +5% vivacité | Corrige les photos d'intérieur ternes |
+| **Micro-recadrage** | Cadrage doux asymétrique (1.5% à 2%) | Décale la grille DCT sans couper le produit |
+| **Encodage HD** | Qualité JPEG 96% | Zéro bruit numérique, zéro flou de rotation |
+| **Permutation couverture** | Échange de la photo 1 avec la photo 2 ou 3 | Casse immédiatement l'empreinte principale |
+
+### Reformulation de texte (IA & Locale)
+- **Intégration OpenAI (`gpt-4o-mini`)** : Reformulation fluide et humaine du titre et de la description via l'API OpenAI (~0,00008 $ par annonce).
+- **Variations locales (hors ligne)** : Moteur de synonymes et réorganisation structurelle sans dépendance externe.
+- **Directives de style strictes** : Suppression intégrale des emojis, des superlatifs commerciaux et du markdown non supporté par Vinted.
+
+### Moteur de formulaire (Form Engine)
+- **Découverte dynamique du schéma** : Détection automatique des champs conditionnels spécifiques à la catégorie choisie (matière, dimensions, etc.).
+- **Résolution précise des sélecteurs** : Prise en charge fiabilisée des listes hiérarchiques de catégories, marques, tailles, formats de colis et prix.
+- **Mode discret en arrière-plan** : Pré-remplissage autonome sans basculement forcé d'onglet.
+
+---
+
+## Installation
+
+### Prérequis
+- Navigateur Google Chrome ou tout navigateur basé sur Chromium (Brave, Edge, Opera, Vivaldi).
+
+### Procédure
+1. **Cloner ou télécharger le dépôt** :
+   ```bash
+   git clone https://github.com/Omcci/vinted-republisher.git
+   ```
+2. **Charger l'extension dans Chrome** :
+   - Ouvrez `chrome://extensions/`.
+   - Activez le **Mode développeur** (interrupteur en haut à droite).
+   - Cliquez sur **Charger l'extension non empaquetée**.
+   - Sélectionnez le dossier du projet `vinted-republisher`.
+3. L'icône de l'extension apparaît dans la barre d'outils Chrome.
+
+---
+
+## Guide d'utilisation
+
+### 1. Archiver une annonce
+- **Depuis une fiche produit** : Naviguez sur une annonce Vinted, ouvrez l'extension et cliquez sur **Sauvegarder dans le Coffre-fort**.
+- **Depuis votre dressing** : Cliquez sur **Scanner mon dressing**, cochez les articles souhaités et cliquez sur **Sauvegarder**.
+
+### 2. Republier avec le Bouclier Anti-Doublon
+1. Dans l'onglet **Coffre-fort**, localisez l'article à republier.
+2. Cliquez sur **Varier & Pré-remplir**.
+3. Configurez les options du bouclier :
+   - Permutation de la photo de couverture.
+   - Embellissement Studio Pro (Netteté HD, Éclat & Contraste, recadrage doux).
+   - Reformulation du titre et de la description (locale ou IA).
+4. Cliquez sur **Appliquer & Pré-remplir** : le formulaire de publication Vinted s'ouvre et se remplit automatiquement.
+5. Vérifiez les informations saisies et validez la publication.
+
+### 3. Configuration IA (Optionnel)
+1. Dans le panneau principal de l'extension, dépliez la section **Intelligence Artificielle (OpenAI)**.
+2. Saisissez votre clé API OpenAI (`sk-proj-...`).
+3. Sélectionnez le modèle souhaité (`gpt-4o-mini` recommandé).
+4. Cliquez sur **Tester la clé** pour valider la communication avec l'API.
+
+---
+
+## Architecture du projet
+
+```
+vinted-republisher/
+├── manifest.json                  # Déclaration Manifest V3 (permissions, scripts, ressources)
+├── popup.html / popup.css / popup.js # Interface utilisateur, gestion du Vault et modales
+├── content.js                     # Script de contenu, injection et orchestration dans Vinted
+├── vinted-form-engine.js          # Moteur d'automatisation et remplissage des champs DOM
+├── vinted-field-matrix.js         # Matrice de correspondance des champs Vinted
+├── vinted-schema-discovery.js     # Découverte et validation des schémas de catalogue
+├── vinted-schema-store.js         # Gestionnaire de cache local des schémas par catégorie
+├── image-processor.js             # Pipeline Studio Pro (convolution HD, colorimétrie, recadrage)
+├── openai-service.js              # Service client pour l'API OpenAI
+├── background.js                  # Service worker (gestion des onglets et communication)
+├── icons/                         # Icônes de l'extension (16, 32, 48, 128 px)
+└── scripts/                       # Suites de tests automatisés et utilitaires
+```
+
+---
+
+## Tests et validation
+
+Le projet intègre une suite de tests unitaires et d'intégration validant le traitement des images et le moteur de formulaire :
+
+```bash
+# Test du pipeline d'image Studio Pro
+node scripts/test-image-processor.js
+
+# Test des sélecteurs DOM et du moteur de formulaire
+node test-selectors.js
+
+# Test d'intégrité globale et de sécurité
+node scripts/self-test.js
+```
+
+---
+
+## Recommandations d'usage
+
+- **Délais entre republications** : Respectez un délai d'au moins 1 à 2 minutes entre deux publications pour simuler un comportement naturel.
+- **Contrôle avant validation** : Prenez l'habitude de vérifier les champs pré-remplis sur la page de brouillon avant de confirmer la mise en ligne.
+- **Sauvegarde préventive** : Exportez régulièrement votre coffre-fort au format JSON (**Exporter tout**) pour conserver une copie de sécurité de votre inventaire.
+
+---
+
+## Licence
+
+Ce projet est distribué sous licence MIT.
+
+*Avertissement : Cette extension est un outil indépendant et n'est ni affiliée à, ni soutenue par Vinted.*
